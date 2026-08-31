@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+
+# large data / artifacts
+frames_all/
+frames_all_720/
+frames_sample/
+frames_sample_720/
+frames_sample_736x416/
+results/
+video/
