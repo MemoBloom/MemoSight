@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="MemoSight — images in, structured JSON out. Visual understanding through a local mlx-vlm server, validated algorithm-ready output, no cloud API required.">
+  <img src="https://raw.githubusercontent.com/MemoBloom/MemoSight/main/assets/readme/hero.svg" width="100%" alt="MemoSight — images in, structured JSON out. Visual understanding through a local mlx-vlm server, validated algorithm-ready output, no cloud API required.">
 </p>
 
-MemoSight is a reusable image-to-structured-visual-text module. It accepts
-image paths or in-memory image payloads, runs visual understanding through a
-configurable backend, validates (and optionally repairs) the structured
-output, and returns a stable, algorithm-friendly JSON object — fields such as
-caption, scene labels, visible people, actions, objects, lighting, mood, and
-search tags.
+MemoSight is a reusable image-to-structured-visual-text module and CLI. It
+accepts image paths or in-memory image payloads, runs visual understanding
+through a configurable backend, validates (and optionally repairs) the
+structured output, and returns a stable, algorithm-friendly JSON object —
+fields such as caption, scene labels, visible people, actions, objects,
+lighting, mood, and search tags.
 
 It was extracted from the MemoBrain photography workflow system, but has no
 dependency on it: the core module imports only the Python standard library
@@ -54,7 +54,7 @@ real identities.
 ## How It Works
 
 <p align="center">
-  <img src="./assets/readme/pipeline.svg" width="100%" alt="MemoSight pipeline: image source, prompt building, local mlx-vlm backend, then across a trust boundary strict parsing, normalization, and validation, producing a validated MemoSightResult.">
+  <img src="https://raw.githubusercontent.com/MemoBloom/MemoSight/main/assets/readme/pipeline.svg" width="100%" alt="MemoSight pipeline: image source, prompt building, local mlx-vlm backend, then across a trust boundary strict parsing, normalization, and validation, producing a validated MemoSightResult.">
 </p>
 
 Backends return raw model output as text; parsing, normalization, and
@@ -92,24 +92,91 @@ execution order after warm-up.
   `results/test_data_review/index.html` (the `results/` directory is
   gitignored).
 
-## Quick Start
+## Install
 
-Install the package:
+Homebrew (tap):
 
 ```bash
-pip install -e .            # or: uv pip install -e .
-pip install -e ".[dev]"     # with pytest for the test suite
+brew install MemoBloom/memosight/memosight
+```
+
+PyPI or source:
+
+```bash
+pip install memosight                 # from PyPI
+pip install -e .                      # from a source checkout, or: uv pip install -e .
+pip install -e ".[dev]"               # with pytest for the test suite
 pytest tests/
 ```
 
-Start a local [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) server:
+## Quick Start
 
 ```bash
-pip install mlx-vlm
-mlx_vlm.server --model /path/to/your-vlm --port 8080
+memosight setup-mlx        # install mlx-vlm (asks first); prints model guidance
+memosight serve --model /path/to/your-vlm --port 8080   # start the local server
+memosight doctor           # verify the setup
+memosight analyze photo.jpg --language zh --profile photography_default
 ```
 
-Analyze an image:
+`analyze` writes the validated result as stable JSON to stdout. Model weights
+are never downloaded by Homebrew or by memosight itself — you prepare them
+explicitly (see below).
+
+## Local Model Setup
+
+MemoSight talks to a local [mlx-vlm](https://github.com/Blaizzy/mlx-vlm)
+server; it does not load models in-process.
+
+1. Install mlx-vlm: `memosight setup-mlx` (or `pip install mlx-vlm`).
+2. Prepare model weights yourself — for example an
+   [mlx-community](https://huggingface.co/mlx-community) VLM:
+
+   ```bash
+   huggingface-cli download mlx-community/FastVLM-0.5B --local-dir ~/models/FastVLM-0.5B
+   ```
+
+3. Start the server:
+
+   ```bash
+   memosight serve --model ~/models/FastVLM-0.5B --port 8080
+   # equivalent: mlx_vlm.server --model ~/models/FastVLM-0.5B --port 8080
+   ```
+
+### Configuration
+
+Backend connection is configured via environment variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MEMOSIGHT_MLX_SERVER_URL` | `http://127.0.0.1:8080` | mlx_vlm.server base URL |
+| `MEMOSIGHT_MLX_MODEL_NAME` | *(empty)* | model id hint; empty = first model the server reports |
+| `MEMOSIGHT_MLX_TIMEOUT_S` | `60` | request timeout |
+
+## CLI Usage
+
+```text
+memosight --help
+memosight --version
+memosight analyze IMAGE [--language zh|en] [--profile NAME] [--schema FILE]
+                        [--backend mlx|mock] [--compact]
+memosight doctor
+memosight serve --model /path/to/model [--port 8080]
+memosight setup-mlx [--yes]
+```
+
+- `analyze` prints the `MemoSightResult` JSON to stdout and exits non-zero
+  when the result status is not `ok`. `--schema` points to a custom output
+  schema JSON file (implies the `custom` profile). `--backend mock` runs a
+  deterministic offline backend, useful for smoke tests.
+- `doctor` checks the package imports, `MEMOSIGHT_MLX_SERVER_URL`, server
+  reachability, `/health` and `/v1/models`, and the loaded model — each
+  failing check prints concrete remediation advice.
+- `serve` wraps `mlx_vlm.server`; extra arguments after `--` are passed
+  through.
+- `setup-mlx` installs the mlx-vlm package only after your confirmation and
+  never downloads model weights.
+
+## Python API
 
 ```python
 from memosight import (
@@ -132,18 +199,6 @@ result = await pipeline.analyze(
     )
 )
 ```
-
-### Configuration
-
-Backend connection is configured via environment variables:
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `MEMOSIGHT_MLX_SERVER_URL` | `http://127.0.0.1:8080` | mlx_vlm.server base URL |
-| `MEMOSIGHT_MLX_MODEL_NAME` | *(empty)* | model id hint; empty = first model the server reports |
-| `MEMOSIGHT_MLX_TIMEOUT_S` | `60` | request timeout |
-
-## More Examples
 
 ### Base64 Input
 
@@ -183,7 +238,6 @@ client = MlXVlmClient()
 pipeline = TwoStageMemoSightPipeline(
     image_backend=MlXVlmMemoSightBackend(client),
     text_backend=MlXTextMemoSightBackend(client),
-    field_prompt_version="v5",  # fastest variant — see Benchmarks
 )
 result = await pipeline.analyze(request)
 ```
@@ -237,6 +291,34 @@ with `required` / `enum` / `description` / `maxItems`, and are bounded
 (≤ 24 top-level fields, depth ≤ 3, ≤ 20 items per array, ≤ 50 enum choices,
 ≤ 20 KB JSON).
 
+## Troubleshooting
+
+Run `memosight doctor` first — it reports each failing check with concrete
+remediation advice:
+
+```text
+[FAIL] server reachable: http://127.0.0.1:8080 unreachable (ConnectError)
+       -> Start the local server: `memosight serve --model /path/to/model` ...
+```
+
+Common causes:
+
+- **Server not running** — start it with `memosight serve --model ...` and
+  re-run `memosight doctor`.
+- **Wrong URL or port** — set `MEMOSIGHT_MLX_SERVER_URL` to the server's
+  actual base URL.
+- **`MEMOSIGHT_MLX_MODEL_NAME` mismatch** — doctor lists the model ids the
+  server reports; fix the variable or unset it to use the first model.
+- **`mlx-vlm` missing** — `memosight setup-mlx`.
+
+## Privacy
+
+Images are analyzed by a model running on your own machine. MemoSight calls
+no cloud API by default and sends nothing to third parties; the only network
+traffic is HTTP to your local `mlx_vlm.server`. Model weights are prepared or
+downloaded by you, explicitly — neither `brew install memosight` nor any
+memosight command downloads them silently.
+
 ## Video Comparison Frames
 
 Prepare the bundled comparison video at 2 fps with its long edge capped at
@@ -268,6 +350,7 @@ memosight/
   validator.py    # Structured validation issues (default + custom schemas)
   pipeline.py     # MemoSightPipeline: source -> profile -> prompt -> backend -> parse -> normalize -> validate
   two_stage.py    # Image -> caption -> Markdown fields with an independently retryable text stage
+  cli.py          # Command-line interface: analyze / doctor / serve / setup-mlx
   errors.py       # Typed MemoSight* errors
   mlx_client.py   # Vendored httpx client for mlx_vlm.server (used by MlXVlmMemoSightBackend)
   mlx_prompts.py  # Built-in prompts used by the vendored client defaults
@@ -317,4 +400,4 @@ test (`tests/test_memosight_schema.py`) enforces the boundary at import time.
 
 ## License
 
-TBD — add a license before publishing.
+MIT — see [LICENSE](./LICENSE).
