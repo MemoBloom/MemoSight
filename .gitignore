@@ -8,6 +8,9 @@ build/
 .ruff_cache/
 .DS_Store
 
+# git worktrees
+.worktrees/
+
 # large data / artifacts
 frames_all/
 frames_all_720/
