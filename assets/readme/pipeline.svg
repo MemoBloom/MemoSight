@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="300" viewBox="0 0 1200 300"
+     role="img" aria-labelledby="title desc">
+  <title id="title">MemoSight pipeline</title>
+  <desc id="desc">Pipeline from image source through prompt building and a local mlx-vlm backend, across a trust boundary into strict parsing, normalization, and validation, producing a validated MemoSightResult.</desc>
+
+  <defs>
+    <linearGradient id="lensFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#C43C96"/>
+      <stop offset="1" stop-color="#7A5C9E"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="300" rx="26" fill="#FFFFFF" stroke="#E7E4EE" stroke-width="1.5"/>
+
+  <!-- guardrail zone: everything after the trust boundary -->
+  <rect x="551" y="76" width="430" height="136" rx="16" fill="#B03090" fill-opacity="0.05"/>
+
+  <!-- trust boundary -->
+  <path d="M545 84 L545 204" stroke="#B03090" stroke-width="2" stroke-dasharray="5 5"/>
+  <text x="545" y="66" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="14" fill="#B03090">trust boundary</text>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+
+    <!-- 1. source -->
+    <g transform="translate(48 84)">
+      <rect width="130" height="120" rx="14" fill="#F6F4FA" stroke="#E3DEEE"/>
+      <text x="65" y="48" text-anchor="middle" font-size="20" font-weight="700" fill="#14151F">Source</text>
+      <text x="65" y="76" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#6B6F7E">path · bytes</text>
+      <text x="65" y="96" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#6B6F7E">base64</text>
+    </g>
+
+    <!-- 2. prompt -->
+    <g transform="translate(205 84)">
+      <rect width="150" height="120" rx="14" fill="#F6F4FA" stroke="#E3DEEE"/>
+      <text x="75" y="48" text-anchor="middle" font-size="20" font-weight="700" fill="#14151F">Prompt</text>
+      <text x="75" y="76" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#6B6F7E">profile / schema</text>
+      <text x="75" y="96" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#6B6F7E">zh · en</text>
+    </g>
+
+    <!-- 3. backend -->
+    <g transform="translate(382 84)">
+      <rect width="150" height="120" rx="14" fill="#F6F4FA" stroke="#B03090" stroke-opacity="0.45"/>
+      <circle cx="75" cy="26" r="9" fill="url(#lensFill)"/>
+      <text x="75" y="58" text-anchor="middle" font-size="20" font-weight="700" fill="#14151F">Backend</text>
+      <text x="75" y="84" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#6B6F7E">local mlx-vlm</text>
+      <text x="75" y="104" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#6B6F7E">no cloud API</text>
+    </g>
+
+    <!-- 4. parse -->
+    <g transform="translate(559 84)">
+      <rect width="110" height="120" rx="14" fill="#FFFFFF" stroke="#B03090" stroke-opacity="0.45"/>
+      <text x="55" y="48" text-anchor="middle" font-size="20" font-weight="700" fill="#14151F">Parse</text>
+      <text x="55" y="76" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#6B6F7E">strict JSON</text>
+    </g>
+
+    <!-- 5. normalize -->
+    <g transform="translate(696 84)">
+      <rect width="130" height="120" rx="14" fill="#FFFFFF" stroke="#B03090" stroke-opacity="0.45"/>
+      <text x="65" y="48" text-anchor="middle" font-size="20" font-weight="700" fill="#14151F">Normalize</text>
+      <text x="65" y="76" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#6B6F7E">dedupe · caps</text>
+    </g>
+
+    <!-- 6. validate -->
+    <g transform="translate(853 84)">
+      <rect width="120" height="120" rx="14" fill="#FFFFFF" stroke="#B03090" stroke-opacity="0.45"/>
+      <text x="60" y="48" text-anchor="middle" font-size="20" font-weight="700" fill="#14151F">Validate</text>
+      <text x="60" y="76" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#6B6F7E">typed issues</text>
+    </g>
+
+    <!-- 7. result -->
+    <g transform="translate(1000 84)">
+      <rect width="150" height="120" rx="14" fill="#17161F"/>
+      <text x="75" y="58" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700" fill="#E08BC0">MemoSightResult</text>
+      <text x="75" y="88" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#8B8FA3">validated JSON</text>
+    </g>
+  </g>
+
+  <!-- number chips -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="700">
+    <g transform="translate(113 84)"><circle r="13" fill="#FFFFFF" stroke="#B03090" stroke-width="2"/><text y="5" text-anchor="middle" fill="#B03090">1</text></g>
+    <g transform="translate(280 84)"><circle r="13" fill="#FFFFFF" stroke="#B03090" stroke-width="2"/><text y="5" text-anchor="middle" fill="#B03090">2</text></g>
+    <g transform="translate(457 84)"><circle r="13" fill="#FFFFFF" stroke="#B03090" stroke-width="2"/><text y="5" text-anchor="middle" fill="#B03090">3</text></g>
+    <g transform="translate(614 84)"><circle r="13" fill="#FFFFFF" stroke="#B03090" stroke-width="2"/><text y="5" text-anchor="middle" fill="#B03090">4</text></g>
+    <g transform="translate(761 84)"><circle r="13" fill="#FFFFFF" stroke="#B03090" stroke-width="2"/><text y="5" text-anchor="middle" fill="#B03090">5</text></g>
+    <g transform="translate(913 84)"><circle r="13" fill="#FFFFFF" stroke="#B03090" stroke-width="2"/><text y="5" text-anchor="middle" fill="#B03090">6</text></g>
+  </g>
+
+  <!-- arrows -->
+  <g stroke="#B03090" stroke-width="2.5" fill="none">
+    <path d="M182 144 L201 144"/><path d="M195 138 L203 144 L195 150 Z" fill="#B03090" stroke="none"/>
+    <path d="M359 144 L378 144"/><path d="M372 138 L380 144 L372 150 Z" fill="#B03090" stroke="none"/>
+    <path d="M536 144 L555 144"/><path d="M549 138 L557 144 L549 150 Z" fill="#B03090" stroke="none"/>
+    <path d="M673 144 L692 144"/><path d="M686 138 L694 144 L686 150 Z" fill="#B03090" stroke="none"/>
+    <path d="M830 144 L849 144"/><path d="M843 138 L851 144 L843 150 Z" fill="#B03090" stroke="none"/>
+    <path d="M977 144 L996 144"/><path d="M990 138 L998 144 L990 150 Z" fill="#B03090" stroke="none"/>
+  </g>
+
+  <text x="600" y="256" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif"
+        font-size="18" fill="#6B6F7E">Never trust backend output — every response is parsed, normalized, and validated against the contract.</text>
+</svg>

@@ -1,4 +1,6 @@
-# MemoSight
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="MemoSight — images in, structured JSON out. Visual understanding through a local mlx-vlm server, validated algorithm-ready output, no cloud API required.">
+</p>
 
 MemoSight is a reusable image-to-structured-visual-text module. It accepts
 image paths or in-memory image payloads, runs visual understanding through a
@@ -11,11 +13,56 @@ It was extracted from the MemoBrain photography workflow system, but has no
 dependency on it: the core module imports only the Python standard library
 and Pydantic.
 
-```text
-MemoSight = image source -> structured visual observation
+## Why MemoSight
+
+- **A contract, not a chat reply.** Every response is parsed, normalized, and
+  validated against a typed schema — callers get a stable JSON object, never
+  raw model prose.
+- **Local-first.** The default backend talks to a local
+  [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) server. No cloud API key, no
+  data leaving the machine.
+- **Schemas for your domain.** Six built-in profiles (`photography_default`,
+  `wedding_selection`, `portrait_review`, `product_catalog`,
+  `event_coverage`) plus bounded custom JSON schemas with `required`, `enum`,
+  and `maxItems`.
+- **Bilingual prompts.** Prompt construction in Chinese or English from the
+  same schema.
+- **Pure and pluggable.** No persistence, no database, no search index — a
+  purity guard test enforces it at import time. Swap in any backend by
+  implementing a small async protocol.
+- **Flexible input.** File paths, raw bytes, or base64 payloads; temp files
+  are materialized and cleaned up automatically.
+
+## Default Output Contract
+
+```json
+{
+  "caption": "string (non-empty)",
+  "scene_labels": ["string, max 6"],
+  "people": ["string, max 6"],
+  "actions": ["string, max 6"],
+  "objects": ["string, max 6"],
+  "lighting": ["string, max 6"],
+  "mood": ["string, max 6"],
+  "search_tags": ["string, max 6"]
+}
 ```
 
-## Install and Test
+People fields describe visible roles/subjects only — MemoSight never infers
+real identities.
+
+## How It Works
+
+<p align="center">
+  <img src="./assets/readme/pipeline.svg" width="100%" alt="MemoSight pipeline: image source, prompt building, local mlx-vlm backend, then across a trust boundary strict parsing, normalization, and validation, producing a validated MemoSightResult.">
+</p>
+
+Backends return raw model output as text; parsing, normalization, and
+validation are pipeline responsibilities — backend output is never trusted.
+
+## Quick Start
+
+Install the package:
 
 ```bash
 pip install -e .            # or: uv pip install -e .
@@ -23,39 +70,14 @@ pip install -e ".[dev]"     # with pytest for the test suite
 pytest tests/
 ```
 
-The default backend talks to a local [mlx-vlm](https://github.com/Blaizzy/mlx-vlm)
-server (`mlx_vlm.server`). No cloud API is required.
+Start a local [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) server:
 
 ```bash
 pip install mlx-vlm
 mlx_vlm.server --model /path/to/your-vlm --port 8080
 ```
 
-Backend connection is configured via environment variables:
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `MEMOSIGHT_MLX_SERVER_URL` | `http://127.0.0.1:8080` | mlx_vlm.server base URL |
-| `MEMOSIGHT_MLX_MODEL_NAME` | *(empty)* | model id hint; empty = first model the server reports |
-| `MEMOSIGHT_MLX_TIMEOUT_S` | `60` | request timeout |
-
-## Video Comparison Frames
-
-Prepare the bundled comparison video at 2 fps with its long edge capped at
-720 pixels, then select 20 evenly spaced frames:
-
-```bash
-python scripts/extract_frames.py
-```
-
-The command writes all resized frames to `frames_all_720/` and the comparison
-subset to `frames_sample_720/`. Source video and existing full-resolution
-frames are not modified. Override the defaults with `--video`, `--fps`,
-`--long-edge`, or `--sample-count` when needed.
-
-## Example Public API
-
-### Path Input
+Analyze an image:
 
 ```python
 from memosight import (
@@ -78,6 +100,18 @@ result = await pipeline.analyze(
     )
 )
 ```
+
+### Configuration
+
+Backend connection is configured via environment variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MEMOSIGHT_MLX_SERVER_URL` | `http://127.0.0.1:8080` | mlx_vlm.server base URL |
+| `MEMOSIGHT_MLX_MODEL_NAME` | *(empty)* | model id hint; empty = first model the server reports |
+| `MEMOSIGHT_MLX_TIMEOUT_S` | `60` | request timeout |
+
+## More Examples
 
 ### Base64 Input
 
@@ -137,25 +171,24 @@ with `required` / `enum` / `description` / `maxItems`, and are bounded
 (≤ 24 top-level fields, depth ≤ 3, ≤ 20 items per array, ≤ 50 enum choices,
 ≤ 20 KB JSON).
 
-## Default Output Contract
+## Video Comparison Frames
 
-```json
-{
-  "caption": "string (non-empty)",
-  "scene_labels": ["string, max 6"],
-  "people": ["string, max 6"],
-  "actions": ["string, max 6"],
-  "objects": ["string, max 6"],
-  "lighting": ["string, max 6"],
-  "mood": ["string, max 6"],
-  "search_tags": ["string, max 6"]
-}
+Prepare the bundled comparison video at 2 fps with its long edge capped at
+720 pixels, then select 20 evenly spaced frames:
+
+```bash
+python scripts/extract_frames.py
 ```
 
-People fields describe visible roles/subjects only — MemoSight never infers
-real identities.
+The command writes all resized frames to `frames_all_720/` and the comparison
+subset to `frames_sample_720/`. Source video and existing full-resolution
+frames are not modified. Override the defaults with `--video`, `--fps`,
+`--long-edge`, or `--sample-count` when needed.
 
-## Layout
+## Under the Hood
+
+<details>
+<summary><strong>Layout</strong></summary>
 
 ```text
 memosight/
@@ -173,7 +206,10 @@ memosight/
   mlx_prompts.py  # Built-in prompts used by the vendored client defaults
 ```
 
-## Backend Protocol
+</details>
+
+<details>
+<summary><strong>Backend protocol</strong></summary>
 
 Backends implement a small async protocol:
 
@@ -200,12 +236,17 @@ class MemoSightBackend(Protocol):
   and recorded calls. It is a test-only backend: do not store mock results
   in real databases.
 
-## Purity Guarantees
+</details>
+
+<details>
+<summary><strong>Purity guarantees</strong></summary>
 
 MemoSight is a pure module. It performs no persistence, no database access,
 and no search-index logic. Core modules import only the standard library and
 Pydantic; `httpx` is needed solely by the vendored MLX client. A purity guard
 test (`tests/test_memosight_schema.py`) enforces the boundary at import time.
+
+</details>
 
 ## License
 
