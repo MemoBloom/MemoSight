@@ -67,3 +67,22 @@ class MemoSightResult(BaseModel):
     validation: MemoSightValidationResult
     usage: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
+
+
+class MemoSightFieldExtractionResult(BaseModel):
+    """Independent stage-two result, suitable for retry without an image."""
+
+    status: Literal["ok", "failed"]
+    fields: dict[str, list[str]]
+    raw_output: str | None = None
+    validation: MemoSightValidationResult
+    usage: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+
+
+class TwoStageMemoSightResult(MemoSightResult):
+    """MemoSight result with the two raw stage outputs kept separately."""
+
+    caption_raw_output: str | None = None
+    structured_raw_output: str | None = None
+    failed_stage: Literal["caption", "field_extraction"] | None = None

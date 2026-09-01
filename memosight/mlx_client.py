@@ -144,6 +144,7 @@ class MlXVlmClient:
         *,
         system_prompt: str | None = None,
         user_text: str | None = None,
+        max_tokens: int | None = None,
     ) -> str:
         """Generate a structured description of an image.
 
@@ -154,19 +155,43 @@ class MlXVlmClient:
         ``user_text`` overrides; when omitted, the built-in language-based
         prompts are used unchanged (fully backward compatible).
         """
-        return await self._chat_with_image(
-            image_path=image_path,
-            system_prompt=(
+        call_kwargs = {
+            "image_path": image_path,
+            "system_prompt": (
                 system_prompt
                 if system_prompt is not None
                 else self._describe_prompt_for_language(language)
             ),
-            user_text=(
+            "user_text": (
                 user_text
                 if user_text is not None
                 else self._describe_user_text_for_language(language)
             ),
-        )
+        }
+        if max_tokens is not None:
+            call_kwargs["max_tokens"] = max_tokens
+        return await self._chat_with_image(**call_kwargs)
+
+    async def complete_text(
+        self,
+        *,
+        system_prompt: str,
+        user_text: str,
+        max_tokens: int | None = None,
+    ) -> str:
+        """Run a text-only completion on the loaded multimodal model."""
+        model_id = await self._get_model_id()
+        payload = {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+            "max_tokens": max_tokens or 384,
+            "stream": True,
+            **self._generation_config_for_model(model_id),
+        }
+        return await self._stream_chat(payload)
 
     async def answer(self, image_path: str, question: str) -> str:
         """Answer a specific question about an image."""
@@ -487,6 +512,7 @@ class MlXVlmClient:
         """
         if hasattr(self, "_cached_model_id"):
             return self._cached_model_id
+        model_ids: list[str] = []
         async with await self._get_client() as client:
             try:
                 r = await client.get(f"{self._base_url}/v1/models")
@@ -497,16 +523,12 @@ class MlXVlmClient:
                         for item in body.get("data", [])
                         if isinstance(item, dict) and item.get("id")
                     ]
-                    for mid in model_ids:
-                        if mid == settings.MLX_VLM_MODEL_NAME:
-                            self._cached_model_id = mid
-                            return mid
-                        if mid and mid.endswith(settings.MLX_VLM_MODEL_NAME):
-                            self._cached_model_id = mid
-                            return mid
-                    if model_ids:
-                        self._cached_model_id = model_ids[0]
-                        return model_ids[0]
+                    configured = settings.MLX_VLM_MODEL_NAME
+                    if configured:
+                        for mid in model_ids:
+                            if mid == configured or mid.endswith(configured):
+                                self._cached_model_id = mid
+                                return mid
             except Exception:
                 pass
 
@@ -520,11 +542,18 @@ class MlXVlmClient:
                         return loaded_model
             except Exception:
                 pass
+        if model_ids:
+            self._cached_model_id = model_ids[0]
+            return model_ids[0]
         self._cached_model_id = settings.MLX_VLM_MODEL_NAME
         return self._cached_model_id
 
     async def _chat_with_image(
-        self, image_path: str, system_prompt: str, user_text: str,
+        self,
+        image_path: str,
+        system_prompt: str,
+        user_text: str,
+        max_tokens: int | None = None,
     ) -> str:
         """Call mlx_vlm.server /v1/chat/completions with an image.
 
@@ -547,10 +576,14 @@ class MlXVlmClient:
                     ],
                 },
             ],
-            "max_tokens": 768,
+            "max_tokens": max_tokens or 768,
             "stream": True,
             **self._generation_config_for_model(model_id),
         }
+        return await self._stream_chat(payload)
+
+    async def _stream_chat(self, payload: dict) -> str:
+        """Stream one chat completion with repetition and stall protection."""
         parts: list[str] = []
         finish_reason: str | None = None
         usage: dict = {}

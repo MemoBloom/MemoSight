@@ -37,7 +37,16 @@ _MARKDOWN_FIELD_ALIASES.update(
     {key: key for key in ("caption", *CAPTION_FIELD_KEYS)}
 )
 
-_MARKDOWN_EMPTY_TOKENS = {"none", "null", "unknown", "[]", "-"}
+_MARKDOWN_EMPTY_TOKENS = {
+    "none",
+    "null",
+    "unknown",
+    "[]",
+    "-",
+    "无",
+    "没有",
+    "无内容",
+}
 
 
 @dataclass(frozen=True)
@@ -164,6 +173,25 @@ def parse_markdown_fields(text: str | None) -> dict[str, Any] | None:
     if caption is not None:
         result["caption"] = caption
     return result
+
+
+def find_markdown_field_keys(text: str | None) -> set[str]:
+    """Return recognized field labels present in fixed-Markdown output.
+
+    Unlike :func:`parse_markdown_fields`, this preserves label presence so a
+    caller can distinguish an explicitly empty ``none`` field from a missing
+    required line.
+    """
+    raw = "" if text is None else str(text)
+    found: set[str] = set()
+    for raw_line in raw.splitlines():
+        line = raw_line.strip().lstrip("#").strip()
+        if not line:
+            continue
+        key, _ = _parse_markdown_field_line(line)
+        if key:
+            found.add(key)
+    return found
 
 
 def _parse_markdown_field_line(line: str) -> tuple[str | None, str]:

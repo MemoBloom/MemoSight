@@ -52,6 +52,18 @@ class MemoSightBackend(Protocol):
         ...
 
 
+@runtime_checkable
+class MemoSightTextBackend(Protocol):
+    """Async text-only backend returning raw model output."""
+
+    name: str
+    version: str
+
+    async def complete(self, prompt: MemoSightPrompt) -> str:
+        """Return the raw text completion for ``prompt``."""
+        ...
+
+
 class MlXVlmMemoSightBackend:
     """MemoSight backend over the project's ``MlXVlmClient`` (D-01 HTTP server)."""
 
@@ -99,7 +111,10 @@ class MlXVlmMemoSightBackend:
             # failure is wrapped and the resolved source is still cleaned up.
             client = self._get_client()
             return await client.describe(
-                image.image_path, language=prompt.language, **overrides
+                image.image_path,
+                language=prompt.language,
+                max_tokens=prompt.max_tokens,
+                **overrides,
             )
         except Exception as exc:
             raise MemoSightBackendError(
@@ -107,6 +122,35 @@ class MlXVlmMemoSightBackend:
             ) from exc
         finally:
             image.cleanup()
+
+
+class MlXTextMemoSightBackend:
+    """Text-only MemoSight backend over the same MLX-VLM chat server."""
+
+    name = "mlx_vlm_text"
+    version = "1.0.0"
+
+    def __init__(self, client: MlXVlmClient | None = None) -> None:
+        self._client = client
+
+    def _get_client(self) -> MlXVlmClient:
+        if self._client is None:
+            from .mlx_client import MlXVlmClient
+
+            self._client = MlXVlmClient()
+        return self._client
+
+    async def complete(self, prompt: MemoSightPrompt) -> str:
+        try:
+            return await self._get_client().complete_text(
+                system_prompt=prompt.system or "",
+                user_text=prompt.text,
+                max_tokens=prompt.max_tokens,
+            )
+        except Exception as exc:
+            raise MemoSightBackendError(
+                f"MLX text backend completion failed: {exc}"
+            ) from exc
 
 
 class MemoSightBackendCall(BaseModel):
@@ -136,3 +180,18 @@ class MockMemoSightBackend:
             return self.response
         finally:
             image.cleanup()
+
+
+class MockMemoSightTextBackend:
+    """Deterministic text backend for tests: fixed response, recorded prompts."""
+
+    name = "mock_text"
+    version = "1.0.0"
+
+    def __init__(self, response: str = "") -> None:
+        self.response = response
+        self.calls: list[MemoSightPrompt] = []
+
+    async def complete(self, prompt: MemoSightPrompt) -> str:
+        self.calls.append(prompt)
+        return self.response

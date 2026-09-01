@@ -8,8 +8,11 @@ from .backends import (
     DEFAULT_MOCK_RESPONSE,
     MemoSightBackend,
     MemoSightBackendCall,
+    MemoSightTextBackend,
+    MlXTextMemoSightBackend,
     MlXVlmMemoSightBackend,
     MockMemoSightBackend,
+    MockMemoSightTextBackend,
 )
 from .errors import (
     MemoSightBackendError,
@@ -28,6 +31,7 @@ from .pipeline import MemoSightPipeline
 from .parser import (
     MemoSightParseIssue,
     MemoSightParseResult,
+    find_markdown_field_keys,
     parse_markdown_fields,
     parse_model_output,
 )
@@ -46,12 +50,19 @@ from .profiles import (
     resolve_profile,
     validate_output_schema,
 )
-from .prompts import MemoSightPrompt, build_prompt
+from .prompts import (
+    MemoSightPrompt,
+    build_caption_field_extraction_prompt,
+    build_caption_prompt,
+    build_prompt,
+)
 from .schema import (
+    MemoSightFieldExtractionResult,
     MemoSightImageSource,
     MemoSightObservation,
     MemoSightRequest,
     MemoSightResult,
+    TwoStageMemoSightResult,
 )
 from .source import (
     ResolvedImageSource,
@@ -62,6 +73,7 @@ from .validator import (
     MemoSightValidationResult,
     MemoSightValidator,
 )
+from .two_stage import TwoStageMemoSightPipeline
 
 __all__ = [
     "CAPTION_FIELD_KEYS",
@@ -78,6 +90,7 @@ __all__ = [
     "MemoSightBackendCall",
     "MemoSightBackendError",
     "MemoSightError",
+    "MemoSightFieldExtractionResult",
     "MemoSightImageSource",
     "MemoSightInputError",
     "MemoSightObservation",
@@ -89,16 +102,24 @@ __all__ = [
     "MemoSightPrompt",
     "MemoSightRequest",
     "MemoSightResult",
+    "MemoSightTextBackend",
     "MemoSightSchemaError",
     "MemoSightValidationError",
     "MemoSightValidationIssue",
     "MemoSightValidationResult",
     "MemoSightValidator",
     "MlXVlmMemoSightBackend",
+    "MlXTextMemoSightBackend",
     "MockMemoSightBackend",
+    "MockMemoSightTextBackend",
     "ResolvedImageSource",
+    "TwoStageMemoSightPipeline",
+    "TwoStageMemoSightResult",
+    "build_caption_field_extraction_prompt",
+    "build_caption_prompt",
     "build_prompt",
     "empty_caption_fields",
+    "find_markdown_field_keys",
     "get_profile",
     "list_profiles",
     "normalize_caption_fields",

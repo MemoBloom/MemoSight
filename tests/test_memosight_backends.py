@@ -9,6 +9,8 @@ import pytest
 
 from memosight.backends import (
     MemoSightBackend,
+    MemoSightTextBackend,
+    MlXTextMemoSightBackend,
     MlXVlmMemoSightBackend,
     MockMemoSightBackend,
 )
@@ -39,6 +41,7 @@ class FakeMlXVlmClient:
         language: str = "zh",
         system_prompt: str | None = None,
         user_text: str | None = None,
+        max_tokens: int | None = None,
     ) -> str:
         self.calls.append(
             {
@@ -46,9 +49,28 @@ class FakeMlXVlmClient:
                 "language": language,
                 "system_prompt": system_prompt,
                 "user_text": user_text,
+                "max_tokens": max_tokens,
             }
         )
         self.path_existed_during_call = Path(image_path).exists()
+        if self.error is not None:
+            raise self.error
+        return self.response
+
+    async def complete_text(
+        self,
+        *,
+        system_prompt: str,
+        user_text: str,
+        max_tokens: int | None = None,
+    ) -> str:
+        self.calls.append(
+            {
+                "system_prompt": system_prompt,
+                "user_text": user_text,
+                "max_tokens": max_tokens,
+            }
+        )
         if self.error is not None:
             raise self.error
         return self.response
@@ -64,6 +86,9 @@ def test_backends_satisfy_protocol():
     assert isinstance(MockMemoSightBackend(), MemoSightBackend)
     assert isinstance(
         MlXVlmMemoSightBackend(client=FakeMlXVlmClient()), MemoSightBackend
+    )
+    assert isinstance(
+        MlXTextMemoSightBackend(client=FakeMlXVlmClient()), MemoSightTextBackend
     )
 
 
@@ -111,11 +136,34 @@ async def test_mlx_backend_delegates_describe_with_path_and_language(tmp_path):
             "language": "en",
             "system_prompt": None,
             "user_text": "p",
+            "max_tokens": None,
         }
     ]
     # Caller-owned path sources are never cleaned up.
     assert image.exists()
     assert resolved.cleanup_required is False
+
+
+@pytest.mark.asyncio
+async def test_mlx_text_backend_delegates_prompt_without_image():
+    client = FakeMlXVlmClient(response="**scene_labels:** 室内")
+    backend = MlXTextMemoSightBackend(client=client)
+    prompt = MemoSightPrompt(
+        text="输入 caption：\n室内照片",
+        system="只抽取字段",
+        max_tokens=256,
+    )
+
+    result = await backend.complete(prompt)
+
+    assert result == "**scene_labels:** 室内"
+    assert client.calls == [
+        {
+            "system_prompt": "只抽取字段",
+            "user_text": "输入 caption：\n室内照片",
+            "max_tokens": 256,
+        }
+    ]
 
 
 @pytest.mark.asyncio

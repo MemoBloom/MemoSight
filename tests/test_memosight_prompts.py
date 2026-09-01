@@ -1,8 +1,14 @@
 """Tests for memosight.prompts — default zh/en prompts and schema-driven builds."""
 from __future__ import annotations
 
+import pytest
+
 from memosight.profiles import get_profile, resolve_profile
-from memosight.prompts import MemoSightPrompt, build_prompt
+from memosight.prompts import (
+    MemoSightPrompt,
+    build_caption_field_extraction_prompt,
+    build_prompt,
+)
 
 DEFAULT_FIELDS = (
     "caption",
@@ -160,3 +166,99 @@ def test_build_prompt_nested_object_zh():
     assert '"dimensions" (object, 必填)' in prompt.text
     assert '"width_cm" (number, 必填)' in prompt.text
     assert "最多 20 项" in prompt.text
+
+
+def test_field_extraction_prompt_v2_increases_coverage_budget():
+    prompt = build_caption_field_extraction_prompt(
+        "一人在暖光舞台上挥手。", version="v2"
+    )
+
+    assert prompt.schema_name == "caption_fields_markdown_v2"
+    assert prompt.max_tokens == 256
+    assert "每行尽量 2–6 项" in prompt.text
+    assert "重要物体/背景元素/清晰文字" in prompt.text
+    assert prompt.text.endswith("**search_tags:** ...")
+
+
+def test_caption_prompt_v2_targets_dense_longer_output():
+    from memosight.prompts import build_caption_prompt
+
+    baseline = build_caption_prompt(language="zh")
+    candidate = build_caption_prompt(language="zh", version="v2")
+
+    assert baseline.schema_name == "photography_caption_v1"
+    assert baseline.max_tokens == 96
+    assert candidate.schema_name == "photography_caption_v2"
+    assert candidate.max_tokens == 160
+    assert "80–120字" in candidate.text
+    assert "可见文字" in candidate.text
+    assert "避免空泛修饰与重复" in candidate.text
+
+
+def test_caption_prompt_rejects_unknown_version():
+    from memosight.prompts import build_caption_prompt
+
+    with pytest.raises(ValueError, match="Unsupported caption"):
+        build_caption_prompt(version="v4")
+
+
+def test_caption_prompt_v3_is_bounded_natural_language():
+    from memosight.prompts import build_caption_prompt
+
+    prompt = build_caption_prompt(language="zh", version="v3")
+
+    assert prompt.schema_name == "photography_caption_v3"
+    assert prompt.max_tokens == 128
+    assert "90–110字" in prompt.text
+    assert "不要字段标题、列表或换行" in prompt.text
+    assert "可搜索的具体事实" in prompt.text
+
+
+def test_field_extraction_prompt_v1_remains_available_for_comparison():
+    prompt = build_caption_field_extraction_prompt("一人在暖光舞台上挥手。")
+
+    assert prompt.schema_name == "caption_fields_markdown_v1"
+    assert prompt.max_tokens == 192
+    assert "1–8 字短语" in prompt.text
+
+
+def test_field_extraction_prompt_v3_preserves_detail_and_field_boundaries():
+    prompt = build_caption_field_extraction_prompt(
+        "一人在暖光舞台上挥手。", version="v3"
+    )
+
+    assert prompt.schema_name == "caption_fields_markdown_v3"
+    assert prompt.max_tokens == 224
+    assert "不要遗漏" in prompt.text
+    assert "同一事实只放最匹配字段" in prompt.text
+    assert "未说明室内外时不要推断" in prompt.text
+    assert "4–6 个最具体的去重词" in prompt.text
+
+
+def test_field_extraction_prompt_v4_is_short_and_keeps_original_budget():
+    v1 = build_caption_field_extraction_prompt("caption", version="v1")
+    v3 = build_caption_field_extraction_prompt("caption", version="v3")
+    prompt = build_caption_field_extraction_prompt("caption", version="v4")
+
+    assert prompt.schema_name == "caption_fields_markdown_v4"
+    assert prompt.max_tokens == 192
+    assert len(prompt.text) < len(v3.text)
+    assert "逐项保留" in prompt.text
+    assert "同一事实只放最匹配字段" in prompt.text
+    assert len(prompt.text) > len(v1.text)
+
+
+def test_field_extraction_prompt_v5_requires_caption_grounding():
+    prompt = build_caption_field_extraction_prompt("caption", version="v5")
+
+    assert prompt.schema_name == "caption_fields_markdown_v5"
+    assert prompt.max_tokens == 192
+    assert "caption 原文" in prompt.system or "caption" in prompt.system
+    assert "不要补充" in prompt.text
+    assert "光线词放 lighting" in prompt.text
+    assert "不要根据场景推断" in prompt.text
+
+
+def test_field_extraction_prompt_rejects_unknown_version():
+    with pytest.raises(ValueError, match="Unsupported"):
+        build_caption_field_extraction_prompt("caption", version="v6")

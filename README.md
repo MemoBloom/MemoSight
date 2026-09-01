@@ -60,6 +60,38 @@ real identities.
 Backends return raw model output as text; parsing, normalization, and
 validation are pipeline responsibilities — backend output is never trusted.
 
+## Benchmarks
+
+Measured on an Apple M5 (32 GB) with a local Qwen3.5-2B-MLX-4bit served by
+`mlx_vlm.server`: 8 short videos (food, travel, unboxing, vlog — 207s to 1047s
+each), 20 evenly spaced frames per video, 160 frames total, alternating
+execution order after warm-up.
+
+| Video | One-stage JSON | Two-stage v5 | Speedup |
+| --- | ---: | ---: | ---: |
+| Mukbang (hot dog + cheese) | 7.64s | 3.88s | **1.97x** |
+| Disney clip | 7.84s | 3.68s | **2.13x** |
+| 17-min shopping haul | 7.74s | 3.93s | **1.97x** |
+| Cuba travel documentary | 9.70s | 5.64s | **1.72x** |
+| Makeup unboxing | 8.84s | 4.51s | **1.96x** |
+| Luosifen food vlog | 8.70s | 4.67s | **1.86x** |
+| Korea errand-runner vlog | 6.86s | 3.93s | **1.75x** |
+| Australia travel vlog | 6.80s | 3.63s | **1.87x** |
+| **All 160 frames** | **8.01s avg** | **4.23s avg** | **1.89x** |
+
+- The two-stage split is cheap: caption ≈ 1.74s, field extraction ≈ 2.50s.
+- Reliability: one-stage 158/160 `ok`; two-stage v5 142/160 `ok` plus 18
+  `partial` (stage two hiccup — the caption is still returned, and
+  `extract_fields(caption)` retries without touching the image again). Zero
+  hard failures.
+- Frame sets live in `test_data/` (10 frames per video bundled; the benchmark
+  ran on 20). Raw numbers and an interactive per-frame side-by-side review
+  page are generated locally — `scripts/run_test_data_compare.py` writes
+  `results/test_data_compare_one_vs_v5.json` and
+  `scripts/make_test_data_review.py` turns it into
+  `results/test_data_review/index.html` (the `results/` directory is
+  gitignored).
+
 ## Quick Start
 
 Install the package:
@@ -130,6 +162,40 @@ result = await pipeline.analyze(
 )
 ```
 
+### Two-stage Structured Output
+
+The fixed photography contract can also run as two independent model calls:
+
+```text
+image -> short natural-language caption -> fixed Markdown fields
+      -> parse -> normalize -> validate -> the same 8-field JSON contract
+```
+
+```python
+from memosight import (
+    MlXTextMemoSightBackend,
+    MlXVlmMemoSightBackend,
+    TwoStageMemoSightPipeline,
+)
+from memosight.mlx_client import MlXVlmClient
+
+client = MlXVlmClient()
+pipeline = TwoStageMemoSightPipeline(
+    image_backend=MlXVlmMemoSightBackend(client),
+    text_backend=MlXTextMemoSightBackend(client),
+    field_prompt_version="v5",  # fastest variant — see Benchmarks
+)
+result = await pipeline.analyze(request)
+```
+
+`result.observation` has the same default 8-field shape. The two raw outputs
+are available as `caption_raw_output` and `structured_raw_output`; `usage`
+contains separate caption, field-generation, and post-processing timings.
+If stage two fails, the result is `partial` and preserves the caption. Retry
+only that stage with `await pipeline.extract_fields(caption)`—the image is not
+decoded or analyzed again. This pipeline intentionally supports only
+`photography_default`; custom schemas continue to use `MemoSightPipeline`.
+
 ### Custom Schema
 
 ```python
@@ -194,13 +260,14 @@ frames are not modified. Override the defaults with `--video`, `--fps`,
 memosight/
   schema.py       # Public request/result models (MemoSightRequest, MemoSightResult, ...)
   source.py       # Image source normalization (path / bytes / base64 -> ResolvedImageSource)
-  backends.py     # MemoSightBackend protocol, MlXVlmMemoSightBackend, MockMemoSightBackend
+  backends.py     # Image/text backend protocols plus MLX and mock adapters
   profiles.py     # Named schema profiles + custom output_schema validation
   prompts.py      # zh/en prompt construction from profile or custom schema
   parser.py       # Untrusted model output parsing (strict/fenced/embedded JSON, legacy Markdown)
   normalizer.py   # Field normalization (allowed keys, dedupe, max items)
   validator.py    # Structured validation issues (default + custom schemas)
   pipeline.py     # MemoSightPipeline: source -> profile -> prompt -> backend -> parse -> normalize -> validate
+  two_stage.py    # Image -> caption -> Markdown fields with an independently retryable text stage
   errors.py       # Typed MemoSight* errors
   mlx_client.py   # Vendored httpx client for mlx_vlm.server (used by MlXVlmMemoSightBackend)
   mlx_prompts.py  # Built-in prompts used by the vendored client defaults
