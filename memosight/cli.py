@@ -295,11 +295,11 @@ Next steps:
      For example, pick an mlx-community VLM on Hugging Face and download it
      explicitly, e.g.:
 
-       huggingface-cli download mlx-community/FastVLM-0.5B --local-dir ~/models/FastVLM-0.5B
+       huggingface-cli download mlx-community/Qwen3.5-2B-MLX-4bit --local-dir ~/models/Qwen3.5-2B-MLX-4bit
 
   2. Start the local server:
 
-       memosight serve --model ~/models/FastVLM-0.5B --port 8080
+       memosight serve --model ~/models/Qwen3.5-2B-MLX-4bit --port 8080
 
   3. Verify the setup:
 

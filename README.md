@@ -25,6 +25,15 @@ and Pydantic.
   `wedding_selection`, `portrait_review`, `product_catalog`,
   `event_coverage`) plus bounded custom JSON schemas with `required`, `enum`,
   and `maxItems`.
+- **Your prompts, your schema.** All prompt text ships as bundled config, not
+  code: override any prompt per request with `prompt_config`, inject a
+  prompt plan (per-field guidance, do/don't rules) with `prompt_plan`, and
+  preview the exact prompts with `memosight prompt` before spending a single
+  model call.
+- **Two-stage option for small models.** Split visual understanding into
+  image→caption and caption→fields calls — ~1.9x faster and more reliable on
+  small local VLMs (see Benchmarks), with an independently retryable second
+  stage.
 - **Bilingual prompts.** Prompt construction in Chinese or English from the
   same schema.
 - **Pure and pluggable.** No persistence, no database, no search index — a
@@ -118,9 +127,26 @@ memosight doctor           # verify the setup
 memosight analyze photo.jpg --language zh --profile photography_default
 ```
 
-`analyze` writes the validated result as stable JSON to stdout. Model weights
-are never downloaded by Homebrew or by memosight itself — you prepare them
-explicitly (see below).
+`analyze` writes the validated result as stable JSON to stdout:
+
+```json
+{
+  "status": "ok",
+  "observation": {
+    "caption": "一位身穿黑色运动上衣的女性正在健身房做深蹲……",
+    "scene_labels": ["健身房", "室内"],
+    "mood": ["专注"],
+    "search_tags": ["深蹲", "健身"]
+  },
+  "schema_name": "photography_default"
+}
+```
+
+*(truncated — the full result also carries `default_observation`,
+`validation`, `usage`, and more; see the output contract above.)*
+
+Model weights are never downloaded by Homebrew or by memosight itself — you
+prepare them explicitly (see below).
 
 ## Local Model Setup
 
@@ -128,18 +154,22 @@ MemoSight talks to a local [mlx-vlm](https://github.com/Blaizzy/mlx-vlm)
 server; it does not load models in-process.
 
 1. Install mlx-vlm: `memosight setup-mlx` (or `pip install mlx-vlm`).
-2. Prepare model weights yourself — for example an
-   [mlx-community](https://huggingface.co/mlx-community) VLM:
+2. Prepare model weights yourself — the benchmarks and examples in this repo
+   were validated with
+   [`mlx-community/Qwen3.5-2B-MLX-4bit`](https://huggingface.co/mlx-community/Qwen3.5-2B-MLX-4bit),
+   a good default for Apple Silicon:
 
    ```bash
-   huggingface-cli download mlx-community/FastVLM-0.5B --local-dir ~/models/FastVLM-0.5B
+   huggingface-cli download mlx-community/Qwen3.5-2B-MLX-4bit --local-dir ~/models/Qwen3.5-2B-MLX-4bit
    ```
+
+   Other [mlx-community](https://huggingface.co/mlx-community) VLMs work too.
 
 3. Start the server:
 
    ```bash
-   memosight serve --model ~/models/FastVLM-0.5B --port 8080
-   # equivalent: mlx_vlm.server --model ~/models/FastVLM-0.5B --port 8080
+   memosight serve --model ~/models/Qwen3.5-2B-MLX-4bit --port 8080
+   # equivalent: mlx_vlm.server --model ~/models/Qwen3.5-2B-MLX-4bit --port 8080
    ```
 
 ### Configuration
@@ -227,12 +257,16 @@ result = await pipeline.analyze(
 
 ### Two-stage Structured Output
 
-The fixed photography contract can also run as two independent model calls:
+Any profile — the default photography contract or a custom schema — can run
+as two independent model calls:
 
 ```text
-image -> short natural-language caption -> fixed Markdown fields
-      -> parse -> normalize -> validate -> the same 8-field JSON contract
+image -> short natural-language caption -> fields
+      -> parse -> normalize -> validate -> the requested JSON contract
 ```
+
+Stage two renders as fixed Markdown fields for the default profile and as
+schema-driven JSON for custom and named profiles.
 
 ```python
 from memosight import (
@@ -250,13 +284,15 @@ pipeline = TwoStageMemoSightPipeline(
 result = await pipeline.analyze(request)
 ```
 
-`result.observation` has the same default 8-field shape. The two raw outputs
-are available as `caption_raw_output` and `structured_raw_output`; `usage`
-contains separate caption, field-generation, and post-processing timings.
-If stage two fails, the result is `partial` and preserves the caption. Retry
-only that stage with `await pipeline.extract_fields(caption)`—the image is not
-decoded or analyzed again. This pipeline intentionally supports only
-`photography_default`; custom schemas continue to use `MemoSightPipeline`.
+The two raw outputs are available as `caption_raw_output` and
+`structured_raw_output`; `usage` contains separate caption, field-generation,
+and post-processing timings. If stage two fails, the result is `partial` and
+preserves the caption — retry only that stage with
+`await pipeline.extract_fields(caption)`; the image is not decoded or
+analyzed again. On small local models the split is both faster and more
+reliable than one-stage structured output — see Benchmarks, and the custom
+schema case study in `examples/` (squat tutorial: one-stage 3/10 ok vs
+two-stage 9/10 ok, 48% less time).
 
 ### Custom Schema
 
@@ -298,6 +334,56 @@ custom output can be safely mapped back). Custom schemas support `string`,
 with `required` / `enum` / `description` / `maxItems`, and are bounded
 (≤ 24 top-level fields, depth ≤ 3, ≤ 20 items per array, ≤ 50 enum choices,
 ≤ 20 KB JSON).
+
+### Customizing Prompts
+
+Prompts are assembled from three layers, all replaceable without touching
+library code:
+
+1. **Bundled prompt config** (`memosight/config/default_prompts.json`) —
+   every piece of prompt text, zh and en. Override any entry per request;
+   your dict or JSON file is deep-merged over the defaults:
+
+   ```python
+   result = await pipeline.analyze(
+       MemoSightRequest(
+           image=...,
+           prompt_config="my_prompts.json",  # or a dict
+       )
+   )
+   ```
+
+2. **Prompt plan** — domain guidance rendered into schema-driven prompts:
+   `task_summary`, per-field `field_guidance`, `negative_rules`,
+   `output_rules`, and a `final_prompt`. Plans can be drafted by an LLM
+   (`design_prompt_plan`, always sanitized before use), generated offline
+   (`heuristic_prompt_plan`), or written by hand; a schema can also be
+   drafted from one example object with `infer_output_schema_from_example`.
+
+   ```python
+   import json
+   plan = json.loads(open("examples/squat_prompt_plan.json").read())
+   result = await pipeline.analyze(
+       MemoSightRequest(
+           image=...,
+           profile="custom",
+           output_schema=json.loads(open("examples/squat_schema.json").read()),
+           prompt_plan=plan,
+       )
+   )
+   ```
+
+3. **Preview before you run** — render the exact one-stage and two-stage
+   prompts for a schema without calling any model:
+
+   ```bash
+   memosight prompt --schema examples/squat_schema.json \
+                    --plan examples/squat_prompt_plan.json
+   # add --json for machine-readable output
+   ```
+
+`examples/squat_prompts.md` shows a full generated prompt set for a fitness
+schema.
 
 ## Troubleshooting
 
@@ -352,13 +438,16 @@ memosight/
   source.py       # Image source normalization (path / bytes / base64 -> ResolvedImageSource)
   backends.py     # Image/text backend protocols plus MLX and mock adapters
   profiles.py     # Named schema profiles + custom output_schema validation
-  prompts.py      # zh/en prompt construction from profile or custom schema
+  prompts.py      # zh/en prompt assembly from profile/schema + prompt plan
+  prompt_config.py    # Bundled prompt config loading + deep-merge overrides
+  prompt_designer.py  # PromptPlan models, LLM-drafted plans + sanitization, schema inference
+  config/default_prompts.json  # All bundled prompt text (zh/en), editable via prompt_config
   parser.py       # Untrusted model output parsing (strict/fenced/embedded JSON, legacy Markdown)
   normalizer.py   # Field normalization (allowed keys, dedupe, max items)
   validator.py    # Structured validation issues (default + custom schemas)
   pipeline.py     # MemoSightPipeline: source -> profile -> prompt -> backend -> parse -> normalize -> validate
-  two_stage.py    # Image -> caption -> Markdown fields with an independently retryable text stage
-  cli.py          # Command-line interface: analyze / doctor / serve / setup-mlx
+  two_stage.py    # Image -> caption -> fields with an independently retryable text stage
+  cli.py          # Command-line interface: analyze / doctor / serve / setup-mlx / prompt
   errors.py       # Typed MemoSight* errors
   mlx_client.py   # Vendored httpx client for mlx_vlm.server (used by MlXVlmMemoSightBackend)
   mlx_prompts.py  # Built-in prompts used by the vendored client defaults
