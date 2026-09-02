@@ -148,6 +148,20 @@ memosight analyze photo.jpg --language zh --profile photography_default
 Model weights are never downloaded by Homebrew or by memosight itself — you
 prepare them explicitly (see below).
 
+## Use from Codex (Agent Skill)
+
+Install the bundled Codex agent skill (requires the `memosight` CLI, see
+Install above):
+
+```bash
+npx memosight-skill install   # copies the skill into ~/.codex/skills/memosight
+npx memosight-skill doctor    # verify node, the CLI, and the installed skill
+npx memosight-skill uninstall # remove it again
+```
+
+Then in Codex: `Use $memosight to analyze this image into structured JSON.`
+See [`memosight-skill/`](./memosight-skill) for other agent targets.
+
 ## Local Model Setup
 
 MemoSight talks to a local [mlx-vlm](https://github.com/Blaizzy/mlx-vlm)
