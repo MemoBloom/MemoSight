@@ -1,6 +1,7 @@
 """Public request and response models for the MemoSight module."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -31,6 +32,8 @@ class MemoSightRequest(BaseModel):
     profile: str = "photography_default"
     output_schema: dict[str, Any] | None = None
     output_instructions: str | None = None
+    prompt_plan: dict[str, Any] | None = None
+    prompt_config: dict[str, Any] | str | Path | None = None
     options: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -73,7 +76,7 @@ class MemoSightFieldExtractionResult(BaseModel):
     """Independent stage-two result, suitable for retry without an image."""
 
     status: Literal["ok", "failed"]
-    fields: dict[str, list[str]]
+    fields: dict[str, Any]
     raw_output: str | None = None
     validation: MemoSightValidationResult
     usage: dict[str, Any] = Field(default_factory=dict)

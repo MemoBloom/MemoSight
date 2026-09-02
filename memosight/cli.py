@@ -35,7 +35,7 @@ def _version() -> str:
     try:
         return _pkg_version("memosight")
     except PackageNotFoundError:
-        return "0.1.0"
+        return "0.2.0"
 
 
 def _server_url() -> str:
@@ -309,6 +309,102 @@ Next steps:
     return 0
 
 
+# ── prompt ──
+
+_CAPTION_PLACEHOLDER = {
+    "zh": "这里替换为第一阶段生成的 caption。",
+    "en": "(replaced by the stage-one caption at runtime).",
+}
+
+
+def _run_prompt(args: argparse.Namespace) -> int:
+    """Render one-stage and two-stage prompts for a custom schema."""
+    from .profiles import MemoSightProfile, validate_output_schema
+    from .prompts import (
+        build_caption_prompt,
+        build_caption_structured_extraction_prompt,
+        build_prompt,
+    )
+
+    try:
+        schema = json.loads(args.schema.read_text(encoding="utf-8"))
+    except OSError as exc:
+        print(f"memosight: cannot read schema file: {exc}", file=sys.stderr)
+        return 2
+    except json.JSONDecodeError as exc:
+        print(f"memosight: schema file is not valid JSON: {exc}", file=sys.stderr)
+        return 2
+    try:
+        validate_output_schema(schema)
+    except Exception as exc:
+        print(f"memosight: schema rejected: {exc}", file=sys.stderr)
+        return 2
+
+    plan = None
+    if args.plan is not None:
+        try:
+            plan = json.loads(args.plan.read_text(encoding="utf-8"))
+        except OSError as exc:
+            print(f"memosight: cannot read plan file: {exc}", file=sys.stderr)
+            return 2
+        except json.JSONDecodeError as exc:
+            print(f"memosight: plan file is not valid JSON: {exc}", file=sys.stderr)
+            return 2
+        if not isinstance(plan, dict):
+            print("memosight: plan file must contain a JSON object", file=sys.stderr)
+            return 2
+
+    lang = "zh" if args.language == "zh" else "en"
+    profile = MemoSightProfile(name="custom", schema_name="custom", output_schema=schema)
+    caption = args.caption or _CAPTION_PLACEHOLDER[lang]
+
+    one_stage = build_prompt(profile, language=lang, prompt_plan=plan)
+    stage_one = build_caption_prompt(language=lang)
+    stage_two = build_caption_structured_extraction_prompt(
+        caption, profile, language=lang, prompt_plan=plan
+    )
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "one_stage": _prompt_payload(one_stage),
+                    "two_stage_caption": _prompt_payload(stage_one),
+                    "two_stage_fields": _prompt_payload(stage_two),
+                },
+                ensure_ascii=False,
+                indent=None if args.compact else 2,
+            )
+        )
+        return 0
+
+    sections = [
+        ("One-Stage Prompt", one_stage),
+        ("Two-Stage Prompt 1: Image To Caption", stage_one),
+        ("Two-Stage Prompt 2: Caption To JSON", stage_two),
+    ]
+    for title, prompt in sections:
+        print(f"## {title}\n")
+        print("### System\n")
+        print("```text")
+        print(prompt.system or "")
+        print("```\n")
+        print("### User\n")
+        print("```text")
+        print(prompt.text)
+        print("```\n")
+    return 0
+
+
+def _prompt_payload(prompt) -> dict:
+    return {
+        "system": prompt.system,
+        "text": prompt.text,
+        "max_tokens": prompt.max_tokens,
+        "schema_name": prompt.schema_name,
+    }
+
+
 # ── parser / entry point ──
 
 
@@ -379,6 +475,36 @@ def build_parser() -> argparse.ArgumentParser:
         "--yes", action="store_true", help="do not prompt before pip install"
     )
     p_setup.set_defaults(func=_run_setup_mlx, is_async=False)
+
+    p_prompt = sub.add_parser(
+        "prompt",
+        help="render one-stage and two-stage prompts for a custom output schema",
+    )
+    p_prompt.add_argument(
+        "--schema", type=Path, required=True, metavar="FILE",
+        help="custom output schema as a JSON file",
+    )
+    p_prompt.add_argument(
+        "--plan", type=Path, default=None, metavar="FILE",
+        help="prompt plan JSON (task_summary/field_guidance/negative_rules/"
+        "output_rules/final_prompt), rendered into the prompts",
+    )
+    p_prompt.add_argument(
+        "--language", default="zh", choices=["zh", "en"], help="prompt language"
+    )
+    p_prompt.add_argument(
+        "--caption",
+        default=None,
+        help="caption text for the two-stage stage-two prompt "
+        "(default: a placeholder)",
+    )
+    p_prompt.add_argument(
+        "--json", action="store_true", help="print machine-readable JSON"
+    )
+    p_prompt.add_argument(
+        "--compact", action="store_true", help="single-line JSON (with --json)"
+    )
+    p_prompt.set_defaults(func=_run_prompt, is_async=False)
 
     return parser
 

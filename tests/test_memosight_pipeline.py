@@ -261,6 +261,28 @@ async def test_custom_schema_valid_output_returns_ok(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_prompt_config_flows_through_one_stage_pipeline(tmp_path):
+    image = _image_file(tmp_path)
+    backend = MockMemoSightBackend()
+    pipeline = MemoSightPipeline(backend=backend)
+    config = {
+        "zh": {
+            "one_stage": {
+                "system": "运行时自定义一段式系统提示。",
+                "rules": "运行时自定义一段式输出规则。",
+            }
+        }
+    }
+
+    result = await pipeline.analyze(_request_for(image, prompt_config=config))
+
+    assert result.status == "ok"
+    prompt = backend.calls[0].prompt
+    assert prompt.system == "运行时自定义一段式系统提示。"
+    assert prompt.text.endswith("运行时自定义一段式输出规则。")
+
+
+@pytest.mark.asyncio
 async def test_custom_schema_type_errors_fail_with_issues(tmp_path):
     image = _image_file(tmp_path)
     payload = {"product_type": "手表", "brand_visible": "yes"}

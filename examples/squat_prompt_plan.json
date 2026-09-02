@@ -1,0 +1,24 @@
+{
+  "task_summary": "根据目标 JSON schema 进行可见事实结构化抽取。",
+  "field_guidance": {
+    "exercise_type": "图片中可见的健身动作类型。 只能选择：squat/deadlift/bench_press/push_up/plank/lunge/other。",
+    "visible_body_parts": "动作判断中清晰可见的身体部位。 使用简短数组，最多 8 项。",
+    "pose_phase": "当前动作处于哪个阶段。 只能选择：setup/top/middle/bottom/unknown。",
+    "alignment_issues": "从可见姿态中观察到的动作对齐问题。 使用简短数组，最多 8 项。",
+    "equipment_visible": "图片中清晰可见的健身器械。 使用简短数组，最多 6 项。",
+    "safety_risk": "是否存在明显可见的动作安全风险。 只在可见证据明确支持时为 true。",
+    "coaching_summary": "基于可见姿态给出的简短动作建议。"
+  },
+  "negative_rules": [
+    "不要推断图片中不可见的信息。",
+    "不要添加 schema 中不存在的字段。",
+    "不要把不确定内容写成确定事实。"
+  ],
+  "output_rules": [
+    "只输出一个 JSON 对象。",
+    "字段名、嵌套结构和类型必须匹配 schema。",
+    "数组字段遵守 maxItems 限制。"
+  ],
+  "final_prompt": "根据目标 JSON schema 进行可见事实结构化抽取。\n结合字段判断策略抽取可见事实；不猜测身份、意图或不可见信息。",
+  "source": "reconstructed-from-examples/squat_prompts.md"
+}

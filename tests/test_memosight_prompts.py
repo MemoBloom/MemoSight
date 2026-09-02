@@ -4,9 +4,12 @@ from __future__ import annotations
 import pytest
 
 from memosight.profiles import get_profile, resolve_profile
+from memosight.prompt_designer import MemoSightPromptPlan
 from memosight.prompts import (
     MemoSightPrompt,
     build_caption_field_extraction_prompt,
+    build_caption_prompt,
+    build_caption_structured_extraction_prompt,
     build_prompt,
 )
 
@@ -109,6 +112,73 @@ def test_build_prompt_appends_profile_and_caller_instructions():
     assert "请重点关注包装。" in prompt.text
 
 
+def test_build_prompt_can_include_prompt_plan_guidance():
+    profile = resolve_profile(output_schema=CUSTOM_SCHEMA)
+    plan = MemoSightPromptPlan(
+        task_summary="电商商品图编目",
+        field_guidance={
+            "product_type": "识别主体商品类别，不要用品牌名代替类别。",
+            "brand_visible": "只有 logo 或品牌文字清晰可见时为 true。",
+            "mood": "只描述可见色彩带来的整体倾向。",
+            "dominant_colors": "优先产品本体主色，最多 5 项。",
+        },
+        negative_rules=["不要把包装盒当作商品本体。"],
+        output_rules=["只输出一个 JSON 对象。"],
+        final_prompt="围绕商品主体抽取可见事实。",
+    )
+
+    prompt = build_prompt(profile, language="zh", prompt_plan=plan)
+
+    assert "字段判断策略" in prompt.text
+    assert "识别主体商品类别" in prompt.text
+    assert "不要把包装盒当作商品本体" in prompt.text
+    assert "围绕商品主体抽取可见事实" in prompt.text
+
+
+def test_build_prompt_accepts_config_override():
+    config = {
+        "zh": {
+            "labels": {
+                "fields_header": "自定义字段清单：",
+                "required": "必须",
+            },
+            "one_stage": {
+                "system": "自定义一段式系统提示。",
+                "rules": "自定义一段式输出规则。",
+            },
+        }
+    }
+
+    prompt = build_prompt(
+        resolve_profile(output_schema=CUSTOM_SCHEMA),
+        language="zh",
+        prompt_config=config,
+    )
+
+    assert prompt.system == "自定义一段式系统提示。"
+    assert "自定义字段清单：" in prompt.text
+    assert '"product_type" (string, 必须)' in prompt.text
+    assert prompt.text.endswith("自定义一段式输出规则。")
+
+
+def test_caption_prompt_accepts_config_override():
+    config = {
+        "zh": {
+            "caption_stage": {
+                "system": "自定义 caption 系统提示。",
+                "text": "自定义 caption 用户提示。",
+                "max_tokens": 32,
+            }
+        }
+    }
+
+    prompt = build_caption_prompt(language="zh", prompt_config=config)
+
+    assert prompt.system == "自定义 caption 系统提示。"
+    assert prompt.text == "自定义 caption 用户提示。"
+    assert prompt.max_tokens == 32
+
+
 def test_named_profile_prompt_uses_its_own_schema_and_instructions():
     prompt = build_prompt(get_profile("wedding_selection"), language="zh")
 
@@ -168,97 +238,93 @@ def test_build_prompt_nested_object_zh():
     assert "最多 20 项" in prompt.text
 
 
-def test_field_extraction_prompt_v2_increases_coverage_budget():
-    prompt = build_caption_field_extraction_prompt(
-        "一人在暖光舞台上挥手。", version="v2"
-    )
-
-    assert prompt.schema_name == "caption_fields_markdown_v2"
-    assert prompt.max_tokens == 256
-    assert "每行尽量 2–6 项" in prompt.text
-    assert "重要物体/背景元素/清晰文字" in prompt.text
-    assert prompt.text.endswith("**search_tags:** ...")
-
-
-def test_caption_prompt_v2_targets_dense_longer_output():
+def test_caption_prompt_is_bounded_natural_language():
     from memosight.prompts import build_caption_prompt
 
-    baseline = build_caption_prompt(language="zh")
-    candidate = build_caption_prompt(language="zh", version="v2")
+    prompt = build_caption_prompt(language="zh")
 
-    assert baseline.schema_name == "photography_caption_v1"
-    assert baseline.max_tokens == 96
-    assert candidate.schema_name == "photography_caption_v2"
-    assert candidate.max_tokens == 160
-    assert "80–120字" in candidate.text
-    assert "可见文字" in candidate.text
-    assert "避免空泛修饰与重复" in candidate.text
-
-
-def test_caption_prompt_rejects_unknown_version():
-    from memosight.prompts import build_caption_prompt
-
-    with pytest.raises(ValueError, match="Unsupported caption"):
-        build_caption_prompt(version="v4")
-
-
-def test_caption_prompt_v3_is_bounded_natural_language():
-    from memosight.prompts import build_caption_prompt
-
-    prompt = build_caption_prompt(language="zh", version="v3")
-
-    assert prompt.schema_name == "photography_caption_v3"
+    assert prompt.schema_name == "photography_caption"
     assert prompt.max_tokens == 128
     assert "90–110字" in prompt.text
     assert "不要字段标题、列表或换行" in prompt.text
     assert "可搜索的具体事实" in prompt.text
 
 
-def test_field_extraction_prompt_v1_remains_available_for_comparison():
-    prompt = build_caption_field_extraction_prompt("一人在暖光舞台上挥手。")
+def test_field_extraction_prompt_requires_caption_grounding():
+    prompt = build_caption_field_extraction_prompt("caption")
 
-    assert prompt.schema_name == "caption_fields_markdown_v1"
-    assert prompt.max_tokens == 192
-    assert "1–8 字短语" in prompt.text
-
-
-def test_field_extraction_prompt_v3_preserves_detail_and_field_boundaries():
-    prompt = build_caption_field_extraction_prompt(
-        "一人在暖光舞台上挥手。", version="v3"
-    )
-
-    assert prompt.schema_name == "caption_fields_markdown_v3"
-    assert prompt.max_tokens == 224
-    assert "不要遗漏" in prompt.text
-    assert "同一事实只放最匹配字段" in prompt.text
-    assert "未说明室内外时不要推断" in prompt.text
-    assert "4–6 个最具体的去重词" in prompt.text
-
-
-def test_field_extraction_prompt_v4_is_short_and_keeps_original_budget():
-    v1 = build_caption_field_extraction_prompt("caption", version="v1")
-    v3 = build_caption_field_extraction_prompt("caption", version="v3")
-    prompt = build_caption_field_extraction_prompt("caption", version="v4")
-
-    assert prompt.schema_name == "caption_fields_markdown_v4"
-    assert prompt.max_tokens == 192
-    assert len(prompt.text) < len(v3.text)
-    assert "逐项保留" in prompt.text
-    assert "同一事实只放最匹配字段" in prompt.text
-    assert len(prompt.text) > len(v1.text)
-
-
-def test_field_extraction_prompt_v5_requires_caption_grounding():
-    prompt = build_caption_field_extraction_prompt("caption", version="v5")
-
-    assert prompt.schema_name == "caption_fields_markdown_v5"
+    assert prompt.schema_name == "caption_fields_markdown"
     assert prompt.max_tokens == 192
     assert "caption 原文" in prompt.system or "caption" in prompt.system
     assert "不要补充" in prompt.text
     assert "光线词放 lighting" in prompt.text
     assert "不要根据场景推断" in prompt.text
+    assert prompt.text.endswith("**search_tags:** ...")
 
 
-def test_field_extraction_prompt_rejects_unknown_version():
-    with pytest.raises(ValueError, match="Unsupported"):
-        build_caption_field_extraction_prompt("caption", version="v6")
+def test_caption_structured_extraction_prompt_is_schema_driven():
+    profile = resolve_profile(output_schema=CUSTOM_SCHEMA)
+    prompt = build_caption_structured_extraction_prompt(
+        "A black watch with a visible logo on a white table.",
+        profile,
+        language="en",
+    )
+
+    assert prompt.schema_name == "custom_caption_json"
+    assert "Based only on the caption above" in prompt.text
+    assert '"product_type"' in prompt.text
+    assert '"brand_visible"' in prompt.text
+    assert '"dominant_colors"' in prompt.text
+    assert '"caption"' not in prompt.text
+    assert "warm/cool/neutral" in prompt.text
+    assert "Use only facts explicitly stated in the caption" in prompt.system
+
+
+def test_caption_structured_extraction_prompt_can_include_prompt_plan():
+    profile = resolve_profile(output_schema=CUSTOM_SCHEMA)
+    plan = MemoSightPromptPlan(
+        task_summary="商品 caption 结构化抽取",
+        field_guidance={
+            "product_type": "从 caption 明确写出的主体商品判断类别。",
+            "brand_visible": "caption 写出可见品牌标志或品牌名时为 true。",
+            "mood": "只使用 caption 明确出现的色彩氛围。",
+            "dominant_colors": "从 caption 中提到的可见主色抽取。",
+        },
+        negative_rules=["不要补充 caption 没写出的品牌。"],
+        output_rules=["字段类型必须匹配 schema。"],
+        final_prompt="只根据 caption 生成商品结构化 JSON。",
+    )
+
+    prompt = build_caption_structured_extraction_prompt(
+        "黑色手表表盘上有品牌标志。",
+        profile,
+        prompt_plan=plan,
+    )
+
+    assert "商品 caption 结构化抽取" in prompt.text
+    assert "不要补充 caption 没写出的品牌" in prompt.text
+    assert "只根据 caption 生成商品结构化 JSON" in prompt.text
+
+
+def test_caption_structured_extraction_prompt_accepts_config_override():
+    config = {
+        "zh": {
+            "labels": {
+                "caption_json_fields_header": "自定义 caption JSON 字段：",
+            },
+            "caption_json_stage": {
+                "system": "自定义二段式 JSON 系统提示。",
+                "rules": "自定义二段式 JSON 输出规则。",
+            },
+        }
+    }
+
+    prompt = build_caption_structured_extraction_prompt(
+        "黑色手表表盘上有品牌标志。",
+        resolve_profile(output_schema=CUSTOM_SCHEMA),
+        prompt_config=config,
+    )
+
+    assert prompt.system == "自定义二段式 JSON 系统提示。"
+    assert "自定义 caption JSON 字段：" in prompt.text
+    assert prompt.text.endswith("自定义二段式 JSON 输出规则。")

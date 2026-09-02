@@ -1,9 +1,10 @@
-"""Two-stage structured output: image -> caption -> Markdown fields.
+"""Two-stage structured output: image -> caption -> structured fields.
 
 The stage boundary is intentional: visual inference only writes a concise
-caption, while a text-only call extracts the fixed retrieval fields. Stage
-two is public and independently retryable, so a malformed Markdown response
-does not require repeating visual inference.
+caption, while a text-only call extracts fields. The default profile keeps
+the legacy fixed-Markdown field prompt; custom and named schemas use
+schema-driven JSON prompts. Stage two is public and independently retryable,
+so a malformed text response does not require repeating visual inference.
 """
 from __future__ import annotations
 
@@ -11,14 +12,27 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import Literal
+from typing import Any
 
 from .backends import MemoSightBackend, MemoSightTextBackend
 from .errors import MemoSightInputError
-from .normalizer import CAPTION_FIELD_KEYS, empty_caption_fields, normalize_caption_fields
-from .parser import find_markdown_field_keys, parse_markdown_fields
-from .profiles import DEFAULT_PROFILE_NAME, resolve_profile
-from .prompts import build_caption_field_extraction_prompt, build_caption_prompt
+from .normalizer import (
+    CAPTION_FIELD_KEYS,
+    empty_caption_fields,
+    normalize_caption_fields,
+)
+from .parser import (
+    find_markdown_field_keys,
+    parse_markdown_fields,
+    parse_model_output,
+)
+from .prompt_config import PromptConfigInput
+from .profiles import DEFAULT_PROFILE_NAME, MemoSightProfile, resolve_profile
+from .prompts import (
+    build_caption_field_extraction_prompt,
+    build_caption_prompt,
+    build_caption_structured_extraction_prompt,
+)
 from .schema import (
     MemoSightFieldExtractionResult,
     MemoSightObservation,
@@ -39,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 
 class TwoStageMemoSightPipeline:
-    """Run the fixed default contract through separate vision/text stages."""
+    """Run image captioning and structured extraction as separate stages."""
 
     def __init__(
         self,
@@ -48,21 +62,11 @@ class TwoStageMemoSightPipeline:
         validator: MemoSightValidator | None = None,
         *,
         temp_dir: str | Path | None = None,
-        caption_prompt_version: Literal["v1", "v2", "v3"] = "v1",
-        field_prompt_version: Literal["v1", "v2", "v3", "v4", "v5"] = "v1",
     ) -> None:
-        if caption_prompt_version not in ("v1", "v2", "v3"):
-            raise ValueError("caption_prompt_version must be 'v1', 'v2', or 'v3'")
-        if field_prompt_version not in ("v1", "v2", "v3", "v4", "v5"):
-            raise ValueError(
-                "field_prompt_version must be 'v1', 'v2', 'v3', 'v4', or 'v5'"
-            )
         self._image_backend = image_backend
         self._text_backend = text_backend
         self._validator = validator or MemoSightValidator()
         self._temp_dir = temp_dir
-        self._caption_prompt_version = caption_prompt_version
-        self._field_prompt_version = field_prompt_version
 
     async def analyze(self, request: MemoSightRequest) -> TwoStageMemoSightResult:
         """Analyze an image while preserving both raw stage outputs and timings."""
@@ -79,19 +83,6 @@ class TwoStageMemoSightPipeline:
                 failed_stage="caption",
                 total_started=total_started,
             )
-        if profile.name != DEFAULT_PROFILE_NAME:
-            return self._failed_result(
-                request,
-                error=(
-                    "Two-stage structured output currently supports only the "
-                    f"{DEFAULT_PROFILE_NAME!r} profile"
-                ),
-                failed_stage="caption",
-                total_started=total_started,
-                schema_name=profile.schema_name,
-                schema_version=profile.schema_version,
-            )
-
         source_started = time.perf_counter()
         try:
             resolved = resolve_image_source(request.image, temp_dir=self._temp_dir)
@@ -108,7 +99,7 @@ class TwoStageMemoSightPipeline:
 
         caption_prompt = build_caption_prompt(
             language=request.language,
-            version=self._caption_prompt_version,
+            prompt_config=request.prompt_config,
         )
         caption_started = time.perf_counter()
         try:
@@ -148,17 +139,26 @@ class TwoStageMemoSightPipeline:
                 },
             )
 
-        fields_result = await self.extract_fields(
+        fields_result = await self._extract_fields_for_profile(
             caption,
+            profile,
             language=request.language,
             output_instructions=request.output_instructions,
-            prompt_version=self._field_prompt_version,
+            prompt_plan=request.prompt_plan,
+            prompt_config=request.prompt_config,
         )
-        observation_payload = {
-            "caption": caption,
-            **fields_result.fields,
-        }
-        observation = MemoSightObservation(**observation_payload)
+        is_default = profile.name == DEFAULT_PROFILE_NAME
+        if is_default:
+            observation_payload = {
+                "caption": caption,
+                **fields_result.fields,
+            }
+            observation = MemoSightObservation(**observation_payload)
+            default_observation = observation
+            observation_dict = observation.model_dump()
+        else:
+            observation_dict = fields_result.fields
+            default_observation = self._map_default_observation(observation_dict)
         usage = {
             "source_duration_s": source_duration_s,
             "caption_duration_s": caption_duration_s,
@@ -179,8 +179,8 @@ class TwoStageMemoSightPipeline:
         if fields_result.status == "failed":
             return TwoStageMemoSightResult(
                 status="partial",
-                observation=observation.model_dump(),
-                default_observation=observation,
+                observation=observation_dict,
+                default_observation=default_observation,
                 raw_output=fields_result.raw_output,
                 caption_raw_output=caption_raw,
                 structured_raw_output=fields_result.raw_output,
@@ -196,8 +196,8 @@ class TwoStageMemoSightPipeline:
 
         return TwoStageMemoSightResult(
             status="ok",
-            observation=observation.model_dump(),
-            default_observation=observation,
+            observation=observation_dict,
+            default_observation=default_observation,
             raw_output=fields_result.raw_output,
             caption_raw_output=caption_raw,
             structured_raw_output=fields_result.raw_output,
@@ -215,11 +215,55 @@ class TwoStageMemoSightPipeline:
         *,
         language: str = "zh",
         output_instructions: str | None = None,
-        prompt_version: Literal["v1", "v2", "v3", "v4", "v5"] = "v1",
+        output_schema: dict[str, Any] | None = None,
+        profile: str | None = None,
+        prompt_plan: Any | None = None,
+        prompt_config: PromptConfigInput = None,
     ) -> MemoSightFieldExtractionResult:
-        """Run only caption -> fixed Markdown -> normalized fields -> validation."""
+        """Run only caption -> structured fields -> validation."""
         caption = self._normalize_caption(caption)
-        empty = empty_caption_fields()
+        try:
+            resolved_profile = resolve_profile(
+                output_schema=output_schema,
+                profile=profile,
+            )
+        except Exception as exc:
+            issue = MemoSightValidationIssue(
+                source=f"{_ISSUE_SOURCE}.schema",
+                message=str(exc),
+            )
+            return MemoSightFieldExtractionResult(
+                status="failed",
+                fields={},
+                validation=MemoSightValidationResult(checked=1, issues=[issue]),
+                error=str(exc),
+            )
+
+        return await self._extract_fields_for_profile(
+            caption,
+            resolved_profile,
+            language=language,
+            output_instructions=output_instructions,
+            prompt_plan=prompt_plan,
+            prompt_config=prompt_config,
+        )
+
+    async def _extract_fields_for_profile(
+        self,
+        caption: str,
+        profile: MemoSightProfile,
+        *,
+        language: str,
+        output_instructions: str | None,
+        prompt_plan: Any | None = None,
+        prompt_config: PromptConfigInput = None,
+    ) -> MemoSightFieldExtractionResult:
+        """Run caption extraction for an already resolved profile."""
+        empty = (
+            empty_caption_fields()
+            if profile.name == DEFAULT_PROFILE_NAME
+            else self._caption_seed(caption, profile)
+        )
         if not caption:
             issue = MemoSightValidationIssue(
                 source=f"{_ISSUE_SOURCE}.caption",
@@ -232,11 +276,21 @@ class TwoStageMemoSightPipeline:
                 error=issue.message,
             )
 
+        if profile.name != DEFAULT_PROFILE_NAME:
+            return await self._extract_structured_fields(
+                caption,
+                profile,
+                language=language,
+                output_instructions=output_instructions,
+                prompt_plan=prompt_plan,
+                prompt_config=prompt_config,
+            )
+
         prompt = build_caption_field_extraction_prompt(
             caption,
             language=language,
             output_instructions=output_instructions,
-            version=prompt_version,
+            prompt_config=prompt_config,
         )
         model_started = time.perf_counter()
         try:
@@ -313,6 +367,98 @@ class TwoStageMemoSightPipeline:
             usage=usage,
         )
 
+    async def _extract_structured_fields(
+        self,
+        caption: str,
+        profile: MemoSightProfile,
+        *,
+        language: str,
+        output_instructions: str | None,
+        prompt_plan: Any | None = None,
+        prompt_config: PromptConfigInput = None,
+    ) -> MemoSightFieldExtractionResult:
+        """Run caption -> schema-shaped JSON for custom and named profiles."""
+        prompt = build_caption_structured_extraction_prompt(
+            caption,
+            profile,
+            language=language,
+            output_instructions=output_instructions,
+            prompt_plan=prompt_plan,
+            prompt_config=prompt_config,
+        )
+        model_started = time.perf_counter()
+        try:
+            raw_output = await self._text_backend.complete(prompt)
+        except Exception as exc:
+            logger.exception("Two-stage structured extraction backend failed")
+            return MemoSightFieldExtractionResult(
+                status="failed",
+                fields=self._caption_seed(caption, profile),
+                validation=MemoSightValidationResult(),
+                usage={
+                    "structured_output_duration_s": time.perf_counter()
+                    - model_started,
+                    "postprocess_duration_s": 0.0,
+                },
+                error=f"Field extraction backend failed: {exc}",
+            )
+        structured_duration_s = time.perf_counter() - model_started
+
+        post_started = time.perf_counter()
+        parsed = parse_model_output(raw_output)
+        issues: list[MemoSightValidationIssue] = []
+        if parsed.data is None:
+            parse_issue = parsed.error
+            issues.append(
+                MemoSightValidationIssue(
+                    source=f"{_ISSUE_SOURCE}.fields",
+                    message=(
+                        parse_issue.message
+                        if parse_issue
+                        else "Field output is not recognized JSON"
+                    ),
+                    line=parse_issue.line if parse_issue else None,
+                    column=parse_issue.column if parse_issue else None,
+                )
+            )
+            fields = self._caption_seed(caption, profile)
+        else:
+            fields = self._normalize_structured_fields(parsed.data, caption, profile)
+            issues.extend(
+                self._validator.validate_custom(
+                    fields,
+                    profile.output_schema,
+                    source=f"{_ISSUE_SOURCE}.fields",
+                )
+            )
+        postprocess_duration_s = time.perf_counter() - post_started
+        usage = {
+            "structured_output_duration_s": structured_duration_s,
+            "postprocess_duration_s": postprocess_duration_s,
+            "parse_strategy": parsed.strategy,
+        }
+        validation = MemoSightValidationResult(
+            checked=1,
+            valid=0 if issues else 1,
+            issues=issues,
+        )
+        if issues:
+            return MemoSightFieldExtractionResult(
+                status="failed",
+                fields=fields,
+                raw_output=raw_output,
+                validation=validation,
+                usage=usage,
+                error=f"Field output failed validation ({len(issues)} issue(s))",
+            )
+        return MemoSightFieldExtractionResult(
+            status="ok",
+            fields=fields,
+            raw_output=raw_output,
+            validation=validation,
+            usage=usage,
+        )
+
     async def analyze_batch(
         self, requests: list[MemoSightRequest]
     ) -> list[TwoStageMemoSightResult]:
@@ -332,6 +478,39 @@ class TwoStageMemoSightPipeline:
                     )
                 )
         return results
+
+    @staticmethod
+    def _caption_seed(caption: str, profile: MemoSightProfile) -> dict[str, Any]:
+        """Seed custom outputs with the stage-one caption when schema allows it."""
+        spec = profile.output_schema.get("properties", {}).get("caption")
+        if spec and spec.get("type", "string") == "string":
+            return {"caption": caption}
+        return {}
+
+    @classmethod
+    def _normalize_structured_fields(
+        cls,
+        data: dict[str, Any],
+        caption: str,
+        profile: MemoSightProfile,
+    ) -> dict[str, Any]:
+        """Keep only schema fields and pin caption to the first-stage value."""
+        properties = profile.output_schema.get("properties", {})
+        fields = {key: data[key] for key in properties if key in data}
+        fields.update(cls._caption_seed(caption, profile))
+        return fields
+
+    @staticmethod
+    def _map_default_observation(
+        observation: dict[str, Any],
+    ) -> MemoSightObservation | None:
+        """Best-effort map of schema-shaped output into the default contract."""
+        caption = observation.get("caption")
+        if not isinstance(caption, str) or not caption.strip():
+            return None
+        return MemoSightObservation(
+            caption=caption.strip(), **normalize_caption_fields(observation)
+        )
 
     @staticmethod
     def _normalize_caption(value: str | None) -> str:

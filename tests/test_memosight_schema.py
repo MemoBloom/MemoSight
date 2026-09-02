@@ -35,6 +35,8 @@ def test_request_defaults():
     assert request.language == "zh"
     assert request.profile == "photography_default"
     assert request.output_schema is None
+    assert request.prompt_plan is None
+    assert request.prompt_config is None
     assert request.options == {}
 
 

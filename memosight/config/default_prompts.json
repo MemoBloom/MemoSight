@@ -1,0 +1,70 @@
+{
+  "zh": {
+    "labels": {
+      "required": "必填",
+      "max_items": "最多 {n} 项",
+      "enum": "可选值：",
+      "fields_header": "请输出一个严格的 JSON 对象，字段定义如下：",
+      "caption_json_fields_header": "请只根据上面的 caption 输出一个严格的 JSON 对象，字段定义如下：",
+      "example_shape": "示例结构：",
+      "caption_label": "caption：",
+      "task": "抽取任务：",
+      "field_guidance": "字段判断策略：",
+      "avoid": "不要这样做：",
+      "additional_output_rules": "补充输出规则：",
+      "task_guidance": "任务说明："
+    },
+    "one_stage": {
+      "system": "你是 MemoSight 图像结构化描述助手。请仔细观察图片，只描述可见内容，不要编造细节，不要推断或猜测真实人物身份。",
+      "rules": "输出要求：\n- 只输出一个 JSON 对象，不要使用 Markdown 代码块，不要输出任何解释。\n- 上面给出的字段名（含嵌套字段）必须全部出现，不要新增字段。\n- 多值字段使用字符串数组；没有内容时输出空数组，不要省略字段名。\n- 字段值保持简洁，遵守每个字段的最大条目数限制。\n- 遇到枚举字段时，只能从给定的可选值中挑选；如果枚举值明确包含 \"unknown\"，证据不足时可以使用该值。"
+    },
+    "caption_stage": {
+      "system": "只描述图片中可见内容，不猜测身份或不可见信息。",
+      "text": "只输出90–110字的单段自然语言caption，不要字段标题、列表或换行。优先写主体数量、外观服装与动作，再写场景背景、关键物体或清晰文字，最后写光线和明确氛围。只保留可见、可搜索的具体事实，不重复。",
+      "max_tokens": 128
+    },
+    "markdown_field_stage": {
+      "system": "你是照片检索字段抽取器。每一项都必须能在 caption 原文中找到对应表述，找不到就不写；禁止推断、补充或引入新词。",
+      "template": "将上面的 caption 转成固定 7 行 Markdown。每一项都必须能在 caption 原文中找到对应表述，找不到就不写，禁止推断或补充：actions 只写 caption 明确写出的动作，不要补充\"站立\"等通用动作；mood 只写 caption 明确写出的氛围词，没写就写 none，不要根据场景推断；光线词放 lighting，不是物体；search_tags 从其他字段选 3–6 个最具体词，不引入新词。字段值用 1–8 字中文短语，逗号分隔，每行最多 6 项；无内容写 none。不要复述 caption，只输出：\n**scene_labels:** ...\n**people:** ...\n**actions:** ...\n**objects:** ...\n**lighting:** ...\n**mood:** ...\n**search_tags:** ...",
+      "max_tokens": 192
+    },
+    "caption_json_stage": {
+      "system": "你是 MemoSight caption 结构化抽取助手。只使用 caption 明确写出的事实，不要猜测、补充或推断图片中未写出的信息。",
+      "rules": "抽取要求：\n- 只输出一个 JSON 对象，不要使用 Markdown 代码块，不要输出任何解释。\n- 上面给出的字段名（含嵌套字段）必须全部出现，不要新增字段。\n- 字段名、嵌套结构和类型必须严格匹配上面的 JSON 字段定义。\n- caption 没有明确写出的内容：非枚举字符串用空字符串，数组用空数组，布尔值在 caption 没有明确支持该判断时用 false。\n- 枚举字段只能从给定可选值中挑选；如果枚举值明确包含 \"unknown\"，证据不足时可以使用该值。\n- 多值字段使用数组；遵守每个字段的最大条目数限制。"
+    }
+  },
+  "en": {
+    "labels": {
+      "required": "required",
+      "max_items": "max {n} items",
+      "enum": "one of: ",
+      "fields_header": "Output a strict JSON object with these fields:",
+      "caption_json_fields_header": "Based only on the caption above, output a strict JSON object with these fields:",
+      "example_shape": "Example shape:",
+      "caption_label": "caption:",
+      "task": "Extraction task:",
+      "field_guidance": "Field guidance:",
+      "avoid": "Avoid:",
+      "additional_output_rules": "Additional output rules:",
+      "task_guidance": "Task guidance:"
+    },
+    "one_stage": {
+      "system": "You are the MemoSight structured image description assistant. Examine the image carefully. Describe only what is visible. Do not invent details. Do not infer or guess real-world identities of people.",
+      "rules": "Output rules:\n- Output exactly one JSON object. No Markdown fences, no explanations.\n- Every field name above (including nested fields) must appear; do not add fields.\n- Use string arrays for multi-value fields; use empty arrays when there is nothing to report. Never omit keys.\n- Keep field values concise and respect each field's maximum item count.\n- For enum fields, choose only from the listed choices; if an enum explicitly includes \"unknown\", use that value when evidence is insufficient."
+    },
+    "caption_stage": {
+      "system": "Describe only visible image content. Do not guess identities or unseen facts.",
+      "text": "Output only one natural-language caption of 100–130 words, with no field headings, lists, or line breaks. Prioritize subject count, appearance, clothing, and actions; then scene, background, key objects or readable text; finally lighting and explicit mood. Keep only visible, searchable concrete facts and do not repeat them.",
+      "max_tokens": 128
+    },
+    "markdown_field_stage": {
+      "system": "You extract photo retrieval fields. Every item must trace back to a phrase explicitly written in the caption; if it cannot, omit it. Do not infer, add, or introduce new terms.",
+      "template": "Convert the caption above into exactly 7 Markdown lines. Every item must trace back to a phrase explicitly written in the caption; if it cannot, omit it — no inference or additions: actions only includes actions the caption explicitly states, do not add generic ones like \"standing\"; mood only includes mood words the caption explicitly states, write none when it states none, never infer mood from the scene; light words belong to lighting, they are not objects; search_tags picks 3–6 of the most specific terms from the other fields, no new terms. Use short comma-separated phrases, at most 6 per line; write none when empty. Do not repeat the caption. Output only:\n**scene_labels:** ...\n**people:** ...\n**actions:** ...\n**objects:** ...\n**lighting:** ...\n**mood:** ...\n**search_tags:** ...",
+      "max_tokens": 192
+    },
+    "caption_json_stage": {
+      "system": "You are the MemoSight caption structured extraction assistant. Use only facts explicitly stated in the caption. Do not guess, add, or infer unstated image details.",
+      "rules": "Extraction rules:\n- Output exactly one JSON object. No Markdown fences, no explanations.\n- Every field name above, including nested fields, must appear; do not add fields.\n- Field names, nesting, and types must strictly match the JSON field definitions above.\n- For content not explicitly stated in the caption: use an empty string for non-enum strings, empty arrays for arrays, and false for booleans unless the caption explicitly supports true.\n- For enum fields, choose only from the listed choices; if an enum explicitly includes \"unknown\", use that value when evidence is insufficient.\n- Use arrays for multi-value fields and respect each field's maximum item count."
+    }
+  }
+}

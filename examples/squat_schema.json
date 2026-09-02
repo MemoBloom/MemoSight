@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "properties": {
+    "exercise_type": {
+      "type": "string",
+      "description": "图片中可见的健身动作类型。",
+      "description_en": "The type of fitness exercise visible in the image.",
+      "enum": ["squat", "deadlift", "bench_press", "push_up", "plank", "lunge", "other"]
+    },
+    "visible_body_parts": {
+      "type": "array",
+      "items": {"type": "string"},
+      "maxItems": 8,
+      "description": "动作判断中清晰可见的身体部位。",
+      "description_en": "Body parts clearly visible for judging the movement."
+    },
+    "pose_phase": {
+      "type": "string",
+      "description": "当前动作处于哪个阶段。",
+      "description_en": "Which phase the movement is currently in.",
+      "enum": ["setup", "top", "middle", "bottom", "unknown"]
+    },
+    "alignment_issues": {
+      "type": "array",
+      "items": {"type": "string"},
+      "maxItems": 8,
+      "description": "从可见姿态中观察到的动作对齐问题。",
+      "description_en": "Form alignment issues observable from the visible pose."
+    },
+    "equipment_visible": {
+      "type": "array",
+      "items": {"type": "string"},
+      "maxItems": 6,
+      "description": "图片中清晰可见的健身器械。",
+      "description_en": "Fitness equipment clearly visible in the image."
+    },
+    "safety_risk": {
+      "type": "boolean",
+      "description": "是否存在明显可见的动作安全风险。",
+      "description_en": "Whether there is a clearly visible movement safety risk."
+    },
+    "coaching_summary": {
+      "type": "string",
+      "description": "基于可见姿态给出的简短动作建议。",
+      "description_en": "A short coaching suggestion based on the visible pose."
+    }
+  },
+  "required": ["exercise_type", "pose_phase", "safety_risk", "coaching_summary"]
+}

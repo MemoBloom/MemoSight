@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memosight"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local-first image-to-structured-visual-text module and CLI: image source -> validated structured visual observation"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -55,6 +55,9 @@ Issues = "https://github.com/MemoBloom/MemoSight/issues"
 
 [tool.setuptools.packages.find]
 include = ["memosight*"]
+
+[tool.setuptools.package-data]
+memosight = ["config/*.json"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

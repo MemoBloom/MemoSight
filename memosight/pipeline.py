@@ -92,6 +92,8 @@ class MemoSightPipeline:
             profile,
             language=request.language,
             output_instructions=self._combined_instructions(request),
+            prompt_plan=request.prompt_plan,
+            prompt_config=request.prompt_config,
         )
         is_default = profile.name == DEFAULT_PROFILE_NAME
 

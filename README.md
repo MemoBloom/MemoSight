@@ -67,7 +67,7 @@ Measured on an Apple M5 (32 GB) with a local Qwen3.5-2B-MLX-4bit served by
 each), 20 evenly spaced frames per video, 160 frames total, alternating
 execution order after warm-up.
 
-| Video | One-stage JSON | Two-stage v5 | Speedup |
+| Video | One-stage JSON | Two-stage | Speedup |
 | --- | ---: | ---: | ---: |
 | Mukbang (hot dog + cheese) | 7.64s | 3.88s | **1.97x** |
 | Disney clip | 7.84s | 3.68s | **2.13x** |
@@ -80,7 +80,7 @@ execution order after warm-up.
 | **All 160 frames** | **8.01s avg** | **4.23s avg** | **1.89x** |
 
 - The two-stage split is cheap: caption ≈ 1.74s, field extraction ≈ 2.50s.
-- Reliability: one-stage 158/160 `ok`; two-stage v5 142/160 `ok` plus 18
+- Reliability: one-stage 158/160 `ok`; two-stage 142/160 `ok` plus 18
   `partial` (stage two hiccup — the caption is still returned, and
   `extract_fields(caption)` retries without touching the image again). Zero
   hard failures.
@@ -162,6 +162,8 @@ memosight analyze IMAGE [--language zh|en] [--profile NAME] [--schema FILE]
 memosight doctor
 memosight serve --model /path/to/model [--port 8080]
 memosight setup-mlx [--yes]
+memosight prompt --schema FILE [--plan FILE] [--language zh|en]
+                 [--caption TEXT] [--json]
 ```
 
 - `analyze` prints the `MemoSightResult` JSON to stdout and exits non-zero
@@ -175,6 +177,12 @@ memosight setup-mlx [--yes]
   through.
 - `setup-mlx` installs the mlx-vlm package only after your confirmation and
   never downloads model weights.
+- `prompt` renders the prompts for a custom output schema without calling any
+  model: the one-stage image→JSON prompt and both two-stage prompts
+  (image→caption and caption→JSON). `--plan` merges a prompt plan
+  (`task_summary` / `field_guidance` / `negative_rules` / `output_rules` /
+  `final_prompt`) into the schema-derived prompts. Output is Markdown by
+  default, or machine-readable with `--json`.
 
 ## Python API
 

@@ -26,7 +26,6 @@ from memosight.mlx_client import MlXVlmClient
 TEST_DATA_DIR = Path("test_data")
 OUT_PATH = Path("results/test_data_compare_one_vs_v5.json")
 LANGUAGE = "zh"
-FIELD_PROMPT_VERSION = "v5"
 
 
 class TimedImageBackend:
@@ -181,7 +180,6 @@ async def main() -> None:
     two_pipeline = TwoStageMemoSightPipeline(
         two_image_backend,
         two_text_backend,
-        field_prompt_version=FIELD_PROMPT_VERSION,
     )
 
     first_frames = sorted(video_dirs[0].glob("*.jpg"))
@@ -249,7 +247,7 @@ async def main() -> None:
         print(
             f"{video['video']}: one {summary['one_stage_ok']}/{summary['frame_count']} ok "
             f"avg {summary['one_stage']['avg_s']:.3f}s; "
-            f"two(v5) {summary['two_stage_ok']}/{summary['frame_count']} ok "
+            f"two {summary['two_stage_ok']}/{summary['frame_count']} ok "
             f"avg {summary['two_stage']['avg_s']:.3f}s "
             f"({summary['two_stage_vs_one_stage_pct']:+.1f}%)",
             flush=True,
