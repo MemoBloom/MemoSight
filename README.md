@@ -21,10 +21,10 @@ and Pydantic.
 - **Local-first.** The default backend talks to a local
   [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) server. No cloud API key, no
   data leaving the machine.
-- **Schemas for your domain.** Six built-in profiles (`photography_default`,
+- **Schemas for your domain.** Five built-in profiles (`photography_default`,
   `wedding_selection`, `portrait_review`, `product_catalog`,
-  `event_coverage`) plus bounded custom JSON schemas with `required`, `enum`,
-  and `maxItems`.
+  `event_coverage`), a `custom` profile, and bounded custom JSON schemas with
+  `required`, `enum`, and `maxItems`.
 - **Your prompts, your schema.** All prompt text ships as bundled config, not
   code: override any prompt per request with `prompt_config`, inject a
   prompt plan (per-field guidance, do/don't rules) with `prompt_plan`, and
