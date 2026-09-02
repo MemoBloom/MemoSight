@@ -1,0 +1,5 @@
+# MemoSight skill UI metadata for Codex.
+interface:
+  display_name: "MemoSight"
+  short_description: "Turn local images and video frames into validated structured JSON via the memosight CLI."
+  default_prompt: "Use $memosight to analyze this image into structured JSON."

@@ -1,0 +1,32 @@
+{
+  "name": "memosight-skill",
+  "version": "0.1.0",
+  "description": "Agent skill installer for MemoSight — integrates the local-first memosight CLI into Codex and other agent environments.",
+  "type": "module",
+  "bin": {
+    "memosight-skill": "./bin/memosight-skill.js"
+  },
+  "files": [
+    "bin",
+    "skill",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/MemoBloom/MemoSight",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MemoBloom/MemoSight.git",
+    "directory": "memosight-skill"
+  },
+  "keywords": [
+    "memosight",
+    "codex",
+    "agent-skill",
+    "image-understanding",
+    "local-first",
+    "mlx"
+  ]
+}
