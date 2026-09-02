@@ -2,6 +2,10 @@
   <img src="https://raw.githubusercontent.com/MemoBloom/MemoSight/main/assets/readme/hero.svg" width="100%" alt="MemoSight — images in, structured JSON out. Visual understanding through a local mlx-vlm server, validated algorithm-ready output, no cloud API required.">
 </p>
 
+<p align="center">
+  English | <a href="README.zh-CN.md">简体中文</a>
+</p>
+
 MemoSight is a reusable image-to-structured-visual-text module and CLI. It
 accepts image paths or in-memory image payloads, runs visual understanding
 through a configurable backend, validates (and optionally repairs) the
