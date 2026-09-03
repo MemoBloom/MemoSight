@@ -25,8 +25,8 @@
     },
     "markdown_field_stage": {
       "system": "你是照片检索字段抽取器。每一项都必须能在 caption 原文中找到对应表述，找不到就不写；禁止推断、补充或引入新词。",
-      "template": "将上面的 caption 转成固定 7 行 Markdown。每一项都必须能在 caption 原文中找到对应表述，找不到就不写，禁止推断或补充：actions 只写 caption 明确写出的动作，不要补充\"站立\"等通用动作；mood 只写 caption 明确写出的氛围词，没写就写 none，不要根据场景推断；光线词放 lighting，不是物体；search_tags 从其他字段选 3–6 个最具体词，不引入新词。字段值用 1–8 字中文短语，逗号分隔，每行最多 6 项；无内容写 none。不要复述 caption，只输出：\n**scene_labels:** ...\n**people:** ...\n**actions:** ...\n**objects:** ...\n**lighting:** ...\n**mood:** ...\n**search_tags:** ...",
-      "max_tokens": 192
+      "template": "将上面的 caption 转成固定 7 行 Markdown，输出必须满足以下硬性要求：\n1. 必须恰好输出 7 行；字段名 scene_labels、people、actions、objects、lighting、mood、search_tags 每个恰好出现一次，禁止重复某个字段或漏写。\n2. 每行以 **字段名:** 开头，值为逗号分隔的 1–8 字中文短语，最多 6 项；某字段在 caption 中没有对应内容就写 none，绝不省略该行。\n3. 每一项都必须能在 caption 原文中找到对应表述，找不到就不写，禁止推断或补充：actions 只写明确写出的动作，不要补充\"站立\"等通用动作；mood 只写明确写出的氛围词，没写就写 none；光线词放 lighting，不是物体；search_tags 从其他字段选 3–6 个最具体词，不引入新词。\n4. 输出以 **search_tags:** 这一行结尾；写完这一行才算完成，禁止提前停止。\n\n现在输出：\n**scene_labels:** ...\n**people:** ...\n**actions:** ...\n**objects:** ...\n**lighting:** ...\n**mood:** ...\n**search_tags:** ...",
+      "max_tokens": 256
     },
     "caption_json_stage": {
       "system": "你是 MemoSight caption 结构化抽取助手。只使用 caption 明确写出的事实，不要猜测、补充或推断图片中未写出的信息。",
@@ -60,8 +60,8 @@
     },
     "markdown_field_stage": {
       "system": "You extract photo retrieval fields. Every item must trace back to a phrase explicitly written in the caption; if it cannot, omit it. Do not infer, add, or introduce new terms.",
-      "template": "Convert the caption above into exactly 7 Markdown lines. Every item must trace back to a phrase explicitly written in the caption; if it cannot, omit it — no inference or additions: actions only includes actions the caption explicitly states, do not add generic ones like \"standing\"; mood only includes mood words the caption explicitly states, write none when it states none, never infer mood from the scene; light words belong to lighting, they are not objects; search_tags picks 3–6 of the most specific terms from the other fields, no new terms. Use short comma-separated phrases, at most 6 per line; write none when empty. Do not repeat the caption. Output only:\n**scene_labels:** ...\n**people:** ...\n**actions:** ...\n**objects:** ...\n**lighting:** ...\n**mood:** ...\n**search_tags:** ...",
-      "max_tokens": 192
+      "template": "Convert the caption above into exactly 7 Markdown lines. The output must obey these hard requirements:\n1. Output exactly 7 lines; each field name — scene_labels, people, actions, objects, lighting, mood, search_tags — appears exactly once. Never repeat a field or omit one.\n2. Start every line with **field name:** followed by comma-separated short phrases, at most 6 per line; when a field has nothing matching in the caption, write none — never drop the whole line.\n3. Every item must trace back to a phrase explicitly written in the caption; if it cannot, omit it, never infer or add: actions only includes actions the caption explicitly states (do not add generic ones like \"standing\"); mood only includes mood words the caption explicitly states, write none when none are stated; light words belong to lighting, not objects; search_tags picks 3–6 of the most specific terms from the other fields, no new terms.\n4. End with the **search_tags:** line; the output is finished only after that line is written. Never stop before all 7 lines are complete.\n\nNow output:\n**scene_labels:** ...\n**people:** ...\n**actions:** ...\n**objects:** ...\n**lighting:** ...\n**mood:** ...\n**search_tags:** ...",
+      "max_tokens": 256
     },
     "caption_json_stage": {
       "system": "You are the MemoSight caption structured extraction assistant. Use only facts explicitly stated in the caption. Do not guess, add, or infer unstated image details.",

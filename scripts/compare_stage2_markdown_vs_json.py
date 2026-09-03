@@ -19,14 +19,19 @@ from memosight import (
     MemoSightImageSource,
     MlXTextMemoSightBackend,
     MlXVlmMemoSightBackend,
-    TwoStageMemoSightPipeline,
 )
 from memosight.mlx_client import MlXVlmClient
 from memosight.normalizer import empty_caption_fields, normalize_caption_fields
-from memosight.parser import find_markdown_field_keys, parse_markdown_fields
+from memosight.parser import (
+    find_markdown_field_keys,
+    parse_markdown_fields,
+    parse_model_output,
+)
+from memosight.profiles import PHOTOGRAPHY_DEFAULT_FIELDS_SCHEMA, get_profile
 from memosight.prompts import (
     build_caption_field_extraction_prompt,
     build_caption_prompt,
+    build_caption_structured_extraction_prompt,
 )
 from memosight.source import resolve_image_source
 
@@ -124,25 +129,37 @@ async def run_markdown(text_backend, client, caption: str) -> dict:
     }
 
 
-async def run_json(pipeline, client, caption: str) -> dict:
+async def run_json(text_backend, client, caption: str) -> dict:
+    # The default profile stage two is Markdown again (see A1); this candidate
+    # re-runs the schema-driven JSON stage directly so the paired benchmark
+    # still compares the two stage-two designs.
+    profile = get_profile("photography_default").model_copy(
+        update={"output_schema": PHOTOGRAPHY_DEFAULT_FIELDS_SCHEMA}
+    )
+    prompt = build_caption_structured_extraction_prompt(caption, profile)
     started = time.perf_counter()
-    result = await pipeline.extract_fields(caption)
+    raw = await text_backend.complete(prompt)
     total_s = time.perf_counter() - started
     meta = dict(getattr(client, "_last_response_meta", {}) or {})
+    parsed = parse_model_output(raw)
+    missing: list[str] = []
+    if parsed.data is not None:
+        missing = [key for key in CAPTION_FIELD_KEYS if key not in parsed.data]
+    fields = (
+        normalize_caption_fields(parsed.data)
+        if parsed.data is not None
+        else empty_caption_fields()
+    )
     return {
-        "status": result.status,
-        "missing_fields": [
-            issue.message.removeprefix("Missing required JSON fields: ").split(", ")
-            for issue in result.validation.issues
-            if issue.message.startswith("Missing required JSON fields")
-        ],
-        "fields": result.fields,
-        "raw_output": result.raw_output,
-        "error": result.error,
-        "parse_strategy": result.usage.get("parse_strategy"),
+        "status": "ok" if parsed.data is not None and not missing else "failed",
+        "missing_fields": missing,
+        "fields": fields,
+        "raw_output": raw,
+        "error": parsed.error.message if parsed.error else None,
+        "parse_strategy": parsed.strategy,
         "timings_s": {"total": total_s},
         "completion_tokens": meta.get("usage", {}).get("completion_tokens", 0),
-        "metrics": _field_metrics(result.fields),
+        "metrics": _field_metrics(fields),
     }
 
 
@@ -217,10 +234,6 @@ async def main(limit: int) -> None:
     model_id = await client._get_model_id()
     image_backend = MlXVlmMemoSightBackend(client=client)
     text_backend = MlXTextMemoSightBackend(client=client)
-    pipeline = TwoStageMemoSightPipeline(
-        image_backend=image_backend,
-        text_backend=text_backend,
-    )
 
     captions = load_preserved_captions()
     captions.extend(await load_test_data_captions(image_backend))
@@ -230,7 +243,7 @@ async def main(limit: int) -> None:
 
     print("Warming markdown and json stage-two paths...", flush=True)
     warm_md = await run_markdown(text_backend, client, captions[0]["caption"])
-    warm_js = await run_json(pipeline, client, captions[0]["caption"])
+    warm_js = await run_json(text_backend, client, captions[0]["caption"])
     if warm_js["status"] != "ok" or warm_md["status"] != "ok":
         raise RuntimeError(
             "Stage-two warmup failed; verify the configured MLX server URL "
@@ -242,10 +255,10 @@ async def main(limit: int) -> None:
         print(f"[{index}/{len(captions)}] {item['source']}", flush=True)
         if index % 2:
             md = await run_markdown(text_backend, client, item["caption"])
-            js = await run_json(pipeline, client, item["caption"])
+            js = await run_json(text_backend, client, item["caption"])
             order = "markdown_first"
         else:
-            js = await run_json(pipeline, client, item["caption"])
+            js = await run_json(text_backend, client, item["caption"])
             md = await run_markdown(text_backend, client, item["caption"])
             order = "json_first"
         print(

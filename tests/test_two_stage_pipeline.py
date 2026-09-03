@@ -1,7 +1,6 @@
-"""Contract tests for caption -> schema-driven JSON -> normalized observation."""
+"""Contract tests for caption -> fixed Markdown (complete-output contract) -> normalized observation."""
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -16,18 +15,13 @@ from memosight import (
 from memosight.normalizer import CAPTION_FIELD_KEYS
 
 
-VALID_JSON = json.dumps(
-    {
-        "scene_labels": ["婚礼", "室内"],
-        "people": ["新人", "宾客"],
-        "actions": ["站立", "合影"],
-        "objects": ["花艺", "舞台", "礼服"],
-        "lighting": ["暖光"],
-        "mood": ["庄重", "温馨"],
-        "search_tags": ["婚礼", "新人", "舞台", "暖光"],
-    },
-    ensure_ascii=False,
-)
+VALID_MARKDOWN = """**scene_labels:** 婚礼, 室内
+**people:** 新人, 宾客
+**actions:** 站立, 合影
+**objects:** 花艺, 舞台, 礼服
+**lighting:** 暖光
+**mood:** 庄重, 温馨
+**search_tags:** 婚礼, 新人, 舞台, 暖光"""
 
 
 CUSTOM_SCHEMA = {
@@ -63,7 +57,7 @@ async def test_two_stage_success_preserves_default_output_contract(tmp_path):
     image_backend = MockMemoSightBackend(
         response="照片中，两位新人站在暖光舞台中央，背景有花艺，氛围庄重温馨。"
     )
-    text_backend = MockMemoSightTextBackend(response=VALID_JSON)
+    text_backend = MockMemoSightTextBackend(response=VALID_MARKDOWN)
     pipeline = TwoStageMemoSightPipeline(image_backend, text_backend)
 
     result = await pipeline.analyze(_request(tmp_path))
@@ -75,9 +69,9 @@ async def test_two_stage_success_preserves_default_output_contract(tmp_path):
     assert result.observation["lighting"] == ["暖光"]
     assert result.default_observation is not None
     assert result.caption_raw_output == image_backend.response
-    assert result.structured_raw_output == VALID_JSON
-    assert result.raw_output == VALID_JSON
-    assert result.usage["parse_strategy"] == "strict"
+    assert result.structured_raw_output == VALID_MARKDOWN
+    assert result.raw_output == VALID_MARKDOWN
+    assert result.usage["parse_strategy"] == "markdown"
     assert len(image_backend.calls) == 1
     assert len(text_backend.calls) == 1
 
@@ -85,7 +79,7 @@ async def test_two_stage_success_preserves_default_output_contract(tmp_path):
 @pytest.mark.asyncio
 async def test_prompts_are_short_and_single_purpose(tmp_path):
     image_backend = MockMemoSightBackend(response="室内暖光下的一人站在桌旁。")
-    text_backend = MockMemoSightTextBackend(response=VALID_JSON)
+    text_backend = MockMemoSightTextBackend(response=VALID_MARKDOWN)
     pipeline = TwoStageMemoSightPipeline(image_backend, text_backend)
 
     await pipeline.analyze(_request(tmp_path))
@@ -96,21 +90,23 @@ async def test_prompts_are_short_and_single_purpose(tmp_path):
     assert "scene_labels" not in caption_prompt.text
     assert len(caption_prompt.text) < 120
     assert "只输出" in caption_prompt.text
-    assert "只使用 caption 明确写出的事实" in field_prompt.system
-    assert all(f'"{key}"' in field_prompt.text for key in CAPTION_FIELD_KEYS)
-    assert '"caption"' not in field_prompt.text
+    assert "caption 原文" in field_prompt.system
+    assert all(key in field_prompt.text for key in CAPTION_FIELD_KEYS)
     assert len(field_prompt.system) < 80
     assert "室内暖光下的一人站在桌旁" in field_prompt.text
-    assert field_prompt.schema_name == "photography_default_caption_json"
-    assert field_prompt.max_tokens == 384
+    assert field_prompt.schema_name == "caption_fields_markdown"
+    assert field_prompt.max_tokens == 256
+    # The default stage-two Markdown template enforces a complete 7-line
+    # output contract (early stop / repeated lines are the failure mode it
+    # was written to prevent).
+    assert "每个恰好出现一次" in field_prompt.text
+    assert "禁止提前停止" in field_prompt.text
 
 
 @pytest.mark.asyncio
-async def test_missing_json_field_is_partial_and_caption_is_preserved(tmp_path):
+async def test_missing_markdown_line_is_partial_and_caption_is_preserved(tmp_path):
     caption = "一人在室内桌旁站立。"
-    payload = json.loads(VALID_JSON)
-    del payload["lighting"]
-    incomplete = json.dumps(payload, ensure_ascii=False)
+    incomplete = VALID_MARKDOWN.replace("**lighting:** 暖光\n", "")
     pipeline = TwoStageMemoSightPipeline(
         MockMemoSightBackend(response=caption),
         MockMemoSightTextBackend(response=incomplete),
@@ -128,7 +124,7 @@ async def test_missing_json_field_is_partial_and_caption_is_preserved(tmp_path):
 @pytest.mark.asyncio
 async def test_field_stage_can_be_rerun_without_image(tmp_path):
     image_backend = MockMemoSightBackend(response="不会调用")
-    text_backend = MockMemoSightTextBackend(response=VALID_JSON)
+    text_backend = MockMemoSightTextBackend(response=VALID_MARKDOWN)
     pipeline = TwoStageMemoSightPipeline(image_backend, text_backend)
 
     result = await pipeline.extract_fields("两位新人站在暖光舞台中央。")
@@ -161,49 +157,31 @@ async def test_custom_field_stage_can_be_rerun_without_image(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_empty_arrays_pass_validation(tmp_path):
-    empty_json = json.dumps({key: [] for key in CAPTION_FIELD_KEYS})
+async def test_none_values_become_empty_arrays(tmp_path):
+    markdown = "\n".join(f"**{key}:** none" for key in CAPTION_FIELD_KEYS)
     pipeline = TwoStageMemoSightPipeline(
         MockMemoSightBackend(response="空旷室内。"),
-        MockMemoSightTextBackend(response=empty_json),
-    )
-
-    result = await pipeline.analyze(_request(tmp_path))
-
-    assert result.status == "ok"
-    assert all(result.observation[key] == [] for key in CAPTION_FIELD_KEYS)
-
-
-@pytest.mark.asyncio
-async def test_string_field_value_is_coerced_to_single_item_array(tmp_path):
-    payload = json.loads(VALID_JSON)
-    payload["mood"] = "温馨"
-    pipeline = TwoStageMemoSightPipeline(
-        MockMemoSightBackend(response="空旷室内。"),
-        MockMemoSightTextBackend(response=json.dumps(payload, ensure_ascii=False)),
-    )
-
-    result = await pipeline.analyze(_request(tmp_path))
-
-    assert result.status == "ok"
-    assert result.observation["mood"] == ["温馨"]
-
-
-@pytest.mark.asyncio
-async def test_legacy_markdown_output_is_partial_under_json_stage(tmp_path):
-    caption = "两位新人站在暖光舞台中央。"
-    markdown = "**scene_labels:** 婚礼, 室内\n**people:** 新人, 宾客"
-    pipeline = TwoStageMemoSightPipeline(
-        MockMemoSightBackend(response=caption),
         MockMemoSightTextBackend(response=markdown),
     )
 
     result = await pipeline.analyze(_request(tmp_path))
 
-    assert result.status == "partial"
-    assert result.failed_stage == "field_extraction"
-    assert result.observation["caption"] == caption
+    assert result.status == "ok"
     assert all(result.observation[key] == [] for key in CAPTION_FIELD_KEYS)
+
+
+@pytest.mark.asyncio
+async def test_chinese_empty_value_becomes_empty_array(tmp_path):
+    markdown = VALID_MARKDOWN.replace("**people:** 新人, 宾客", "**people:** 无")
+    pipeline = TwoStageMemoSightPipeline(
+        MockMemoSightBackend(response="空旷室内。"),
+        MockMemoSightTextBackend(response=markdown),
+    )
+
+    result = await pipeline.analyze(_request(tmp_path))
+
+    assert result.status == "ok"
+    assert result.observation["people"] == []
 
 
 @pytest.mark.asyncio
@@ -240,7 +218,7 @@ async def test_custom_schema_uses_schema_driven_json_field_prompt(tmp_path):
 @pytest.mark.asyncio
 async def test_prompt_config_flows_through_two_stage_pipeline(tmp_path):
     image_backend = MockMemoSightBackend(response="室内暖光下的一人站在桌旁。")
-    text_backend = MockMemoSightTextBackend(response=VALID_JSON)
+    text_backend = MockMemoSightTextBackend(response=VALID_MARKDOWN)
     pipeline = TwoStageMemoSightPipeline(image_backend, text_backend)
     config = {
         "zh": {
@@ -249,9 +227,9 @@ async def test_prompt_config_flows_through_two_stage_pipeline(tmp_path):
                 "text": "运行时自定义 caption 用户提示。",
                 "max_tokens": 40,
             },
-            "caption_json_stage": {
+            "markdown_field_stage": {
                 "system": "运行时自定义字段系统提示。",
-                "rules": "运行时自定义字段规则。",
+                "template": "运行时自定义字段模板。",
                 "max_tokens": 48,
             },
         }
@@ -266,5 +244,5 @@ async def test_prompt_config_flows_through_two_stage_pipeline(tmp_path):
     assert caption_prompt.text == "运行时自定义 caption 用户提示。"
     assert caption_prompt.max_tokens == 40
     assert field_prompt.system == "运行时自定义字段系统提示。"
-    assert field_prompt.text.endswith("运行时自定义字段规则。")
+    assert field_prompt.text.endswith("运行时自定义字段模板。")
     assert field_prompt.max_tokens == 48

@@ -272,8 +272,9 @@ image -> short natural-language caption -> fields
       -> parse -> normalize -> validate -> the requested JSON contract
 ```
 
-第二阶段对所有 profile 都渲染 schema 驱动的 JSON；默认 profile 使用
-不含 caption 的字段 schema（caption 由第一阶段钉死）。
+第二阶段对默认 profile 渲染固定 Markdown 字段 prompt（模板强制完整七行输出契约——
+每个字段名恰好出现一次、必须以 `search_tags` 行收尾，消除了旧模板的提前停笔丢行
+问题），对自定义与命名 profile 渲染 schema 驱动的 JSON。
 
 ```python
 from memosight import (

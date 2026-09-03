@@ -957,3 +957,18 @@ pretty-print 示例输出带缩进 JSON，约 454 字符处被截断），缺字
 结论：默认 profile stage-2 切换 schema-driven JSON（caption-less、紧凑单行、
 max_tokens=384）在 2B 模型上确认提升，特征分支可合入 main。
 最终回归：`.venv/bin/python -m pytest tests/ -q` → 161 passed。
+
+**A1 迭代（2026-09-03，用户决定速度优先，默认回退 Markdown）**：
+
+JSON stage-2 的完整性优势确认（120/120 vs Markdown 99/120），但其文本调用
+约 3.3s（Markdown 约 1.3–1.9s），两段式 JSON 合计 ≈ 一段式，快路径优势消失。
+逐项验证结论：
+
+1. 加预算无效：Markdown @192 与 @512 输出字节级一致（120/120 相同），
+   缺字段是模型在松散文本格式下提前停笔/重复行，不是 token 截断。
+2. 收尾契约有效：新 Markdown 模板要求“恰好 7 行、每字段名恰好一次、以
+   `**search_tags:**` 行结尾、禁止提前停止”（另 max_tokens 192→256），
+   全量 120 条 fixed caption 上 ok=120/120（旧模板 99/120），文本 avg ~1.8s、
+   输出 ~159 字符（JSON 路径 ~3.3s / 460 字符）。
+3. 决定：默认 profile 两段式 stage-2 回退为 Markdown（收尾契约模板）；
+   自定义/命名 profile 维持 schema 驱动 JSON。

@@ -1,12 +1,11 @@
 """Two-stage structured output: image -> caption -> structured fields.
 
 The stage boundary is intentional: visual inference only writes a concise
-caption, while a text-only call extracts fields. All profiles use
-schema-driven JSON prompts for stage two (the default profile uses a
-caption-less fields schema); the legacy fixed-Markdown parser remains for
-the one-stage fallback and external callers. Stage two is public and
-independently retryable, so a malformed text response does not require
-repeating visual inference.
+caption, while a text-only call extracts fields. The default profile uses a
+fixed-Markdown field prompt whose template enforces a complete seven-line
+output contract; custom and named profiles use schema-driven JSON prompts.
+Stage two is public and independently retryable, so a malformed text
+response does not require repeating visual inference.
 """
 from __future__ import annotations
 
@@ -23,15 +22,19 @@ from .normalizer import (
     empty_caption_fields,
     normalize_caption_fields,
 )
-from .parser import parse_model_output
+from .parser import (
+    find_markdown_field_keys,
+    parse_markdown_fields,
+    parse_model_output,
+)
 from .prompt_config import PromptConfigInput
 from .profiles import (
     DEFAULT_PROFILE_NAME,
-    PHOTOGRAPHY_DEFAULT_FIELDS_SCHEMA,
     MemoSightProfile,
     resolve_profile,
 )
 from .prompts import (
+    build_caption_field_extraction_prompt,
     build_caption_prompt,
     build_caption_structured_extraction_prompt,
 )
@@ -288,12 +291,8 @@ class TwoStageMemoSightPipeline:
                 prompt_config=prompt_config,
             )
 
-        fields_profile = profile.model_copy(
-            update={"output_schema": PHOTOGRAPHY_DEFAULT_FIELDS_SCHEMA}
-        )
-        prompt = build_caption_structured_extraction_prompt(
+        prompt = build_caption_field_extraction_prompt(
             caption,
-            fields_profile,
             language=language,
             output_instructions=output_instructions,
             prompt_config=prompt_config,
@@ -317,36 +316,30 @@ class TwoStageMemoSightPipeline:
         structured_duration_s = time.perf_counter() - model_started
 
         post_started = time.perf_counter()
-        parsed = parse_model_output(raw_output)
+        parsed = parse_markdown_fields(raw_output)
+        present = find_markdown_field_keys(raw_output)
+        missing = [key for key in CAPTION_FIELD_KEYS if key not in present]
         issues: list[MemoSightValidationIssue] = []
-        if parsed.data is None:
-            parse_issue = parsed.error
+        if parsed is None:
             issues.append(
                 MemoSightValidationIssue(
                     source=f"{_ISSUE_SOURCE}.fields",
-                    message=(
-                        parse_issue.message
-                        if parse_issue
-                        else "Field output is not recognized JSON"
-                    ),
-                    line=parse_issue.line if parse_issue else None,
-                    column=parse_issue.column if parse_issue else None,
+                    message="Field output is not recognized fixed Markdown",
                 )
             )
             fields = empty
         else:
-            # Presence check happens on the raw JSON object: normalization
-            # back-fills absent keys with empty lists, which would mask the
-            # dropped-field failure mode this stage is meant to catch.
-            missing = [key for key in CAPTION_FIELD_KEYS if key not in parsed.data]
-            if missing:
-                issues.append(
-                    MemoSightValidationIssue(
-                        source=f"{_ISSUE_SOURCE}.fields",
-                        message=f"Missing required JSON fields: {', '.join(missing)}",
-                    )
+            fields = normalize_caption_fields(parsed)
+        if missing:
+            # Presence check happens on the raw text: normalization back-fills
+            # absent keys with empty lists, which would mask the dropped-line
+            # failure mode this stage is meant to catch.
+            issues.append(
+                MemoSightValidationIssue(
+                    source=f"{_ISSUE_SOURCE}.fields",
+                    message=f"Missing required Markdown fields: {', '.join(missing)}",
                 )
-            fields = normalize_caption_fields(parsed.data)
+            )
         if not issues:
             issues.extend(
                 self._validator.validate_payload(
@@ -358,7 +351,7 @@ class TwoStageMemoSightPipeline:
         usage = {
             "structured_output_duration_s": structured_duration_s,
             "postprocess_duration_s": postprocess_duration_s,
-            "parse_strategy": parsed.strategy,
+            "parse_strategy": "markdown" if parsed is not None else None,
         }
         validation = MemoSightValidationResult(
             checked=1,

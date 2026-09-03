@@ -255,11 +255,12 @@ def test_field_extraction_prompt_requires_caption_grounding():
     prompt = build_caption_field_extraction_prompt("caption")
 
     assert prompt.schema_name == "caption_fields_markdown"
-    assert prompt.max_tokens == 192
+    assert prompt.max_tokens == 256
     assert "caption 原文" in prompt.system or "caption" in prompt.system
     assert "不要补充" in prompt.text
     assert "光线词放 lighting" in prompt.text
-    assert "不要根据场景推断" in prompt.text
+    assert "每个恰好出现一次" in prompt.text
+    assert "禁止提前停止" in prompt.text
     assert prompt.text.endswith("**search_tags:** ...")
 
 
@@ -350,19 +351,14 @@ def test_caption_structured_extraction_prompt_max_tokens_config_override():
     assert prompt.max_tokens == 96
 
 
-def test_default_fields_schema_prompt_lists_seven_fields_without_caption():
-    from memosight.profiles import PHOTOGRAPHY_DEFAULT_FIELDS_SCHEMA
+def test_markdown_fields_prompt_lists_seven_lines_without_caption():
+    prompt = build_caption_field_extraction_prompt("室内暖光下的人。")
 
-    profile = get_profile("photography_default").model_copy(
-        update={"output_schema": PHOTOGRAPHY_DEFAULT_FIELDS_SCHEMA}
-    )
-    prompt = build_caption_structured_extraction_prompt("室内暖光下的人。", profile)
-
-    assert prompt.schema_name == "photography_default_caption_json"
-    assert prompt.max_tokens == 384
+    assert prompt.schema_name == "caption_fields_markdown"
+    assert prompt.max_tokens == 256
     for field in CAPTION_FIELD_KEYS:
-        assert f'"{field}"' in prompt.text
-    assert '"caption"' not in prompt.text
+        assert f"**{field}:**" in prompt.text
+    assert "**caption:**" not in prompt.text
 
 
 def test_caption_structured_extraction_prompt_example_is_compact_single_line():
