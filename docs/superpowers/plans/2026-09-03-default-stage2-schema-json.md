@@ -931,3 +931,29 @@ pretty-print 示例输出带缩进 JSON，约 454 字符处被截断），缺字
    且 zh prompt 含"紧凑"）。
 4. 重跑 `.venv/bin/python scripts/compare_stage2_markdown_vs_json.py`
    （caption 缓存已就绪，stage-1 不重跑），按 Task 5 的判定标准重新评估。
+
+**Task 5 判定（第二轮，2026-09-03）**：效果提升确认。
+
+第二轮基准（120 条固定 caption，配对交替，stage-1 未重跑；模型
+`/Users/kanzhiwu/Workspace/memobrain/models/Qwen3.5-2B-MLX-4bit`）：
+
+| Metric | Markdown baseline | JSON candidate |
+|---|---:|---:|
+| Success | 99/120 | **120/120** |
+| Missing-field failures | 21 | 0 |
+| Other failures (parse) | 0 | 0 |
+| Avg time | 2.235s | 5.403s |
+| P95 time | 3.141s | 7.592s |
+| Field items/caption | 16.18 | 24.39 |
+
+- success 对比：JSON 120/120 > Markdown 99/120 → 有效提升；
+  首轮的 50 条 max_tokens 截断故障全部消失（紧凑单行输出 + 384 预算生效）。
+- 字段丰富度：JSON field items/caption 24.39 vs 基线 16.18（+51%），非下降，
+  无质量回退（people 略降 1.99→1.35，其余字段均升，search_tags 2.82→5.77）。
+- 代价：JSON 耗时约为 Markdown 的 2.4 倍（avg 5.40s vs 2.24s），输出更丰富、
+  且为 7 字段齐全的合法 JSON，属可接受取舍。
+- completion tokens 两侧均为 0.0（后端未回填 usage），该项无法对比。
+
+结论：默认 profile stage-2 切换 schema-driven JSON（caption-less、紧凑单行、
+max_tokens=384）在 2B 模型上确认提升，特征分支可合入 main。
+最终回归：`.venv/bin/python -m pytest tests/ -q` → 161 passed。
