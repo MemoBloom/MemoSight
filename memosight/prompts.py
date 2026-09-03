@@ -20,15 +20,6 @@ from .prompt_config import (
 )
 from .profiles import MAX_ARRAY_ITEMS, MemoSightProfile
 
-_TYPE_LABEL = {
-    "string": "string",
-    "number": "number",
-    "integer": "integer",
-    "boolean": "boolean",
-    "object": "object",
-}
-
-
 class MemoSightPrompt(BaseModel):
     """A fully-rendered prompt handed to a backend.
 
@@ -352,7 +343,7 @@ def _render_field_line(
         item_type = (spec.get("items") or {}).get("type", "string")
         type_label = f"array<{item_type}>"
     else:
-        type_label = _TYPE_LABEL.get(field_type, str(field_type))
+        type_label = str(field_type)
 
     annotations = [type_label]
     if required:

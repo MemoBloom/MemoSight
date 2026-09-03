@@ -270,26 +270,6 @@ class MemoSightValidator:
             message=f"Field must be {expected}, got {type(value).__name__}",
         )
 
-    def render_report(self, report: MemoSightValidationResult, *, color: bool = True) -> str:
-        palette = _Palette(color)
-        lines: list[str] = []
-        for issue in report.issues:
-            marker = palette.red("[ERROR]") if issue.severity == "error" else palette.yellow("[WARN]")
-            location = ""
-            if issue.line is not None and issue.column is not None:
-                location = f":{issue.line}:{issue.column}"
-            lines.append(f"{marker} {palette.bold(issue.source)}{location}")
-            lines.append(f"  {issue.message}")
-            if issue.snippet is not None:
-                lines.extend(f"  {line}" for line in issue.snippet.splitlines())
-        summary = (
-            f"caption harness summary: checked={report.checked} "
-            f"valid={report.valid} errors={sum(1 for i in report.issues if i.severity == 'error')} "
-            f"warnings={sum(1 for i in report.issues if i.severity == 'warning')}"
-        )
-        lines.append(palette.green(summary) if report.ok else palette.red(summary))
-        return "\n".join(lines)
-
     def _validate_jsonl_text(
         self,
         text: str,
@@ -382,25 +362,3 @@ class MemoSightValidator:
                     MemoSightValidationIssue(source=source, message=f"Field {key} must contain only strings; bad indexes: {shown}")
                 )
         return issues
-
-
-class _Palette:
-    def __init__(self, enabled: bool) -> None:
-        self.enabled = enabled
-
-    def red(self, text: str) -> str:
-        return self._wrap("31", text)
-
-    def green(self, text: str) -> str:
-        return self._wrap("32", text)
-
-    def yellow(self, text: str) -> str:
-        return self._wrap("33", text)
-
-    def bold(self, text: str) -> str:
-        return self._wrap("1", text)
-
-    def _wrap(self, code: str, text: str) -> str:
-        if not self.enabled:
-            return text
-        return f"\033[{code}m{text}\033[0m"
