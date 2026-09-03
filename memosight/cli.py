@@ -35,7 +35,7 @@ def _version() -> str:
     try:
         return _pkg_version("memosight")
     except PackageNotFoundError:
-        return "0.2.1"
+        return "0.3.0"
 
 
 def _server_url() -> str:
