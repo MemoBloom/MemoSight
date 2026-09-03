@@ -285,8 +285,8 @@ image -> short natural-language caption -> fields
       -> parse -> normalize -> validate -> the requested JSON contract
 ```
 
-Stage two renders as fixed Markdown fields for the default profile and as
-schema-driven JSON for custom and named profiles.
+Stage two renders schema-driven JSON for all profiles; the default profile
+uses a caption-less fields schema (caption is pinned from stage one).
 
 ```python
 from memosight import (
