@@ -10,8 +10,8 @@ Commands:
 ``analyze`` writes the stable MemoSightResult JSON to stdout; diagnostics go
 to stderr. ``doctor`` checks the local setup and prints remediation advice
 for every failing check. Model weights are never downloaded by this CLI —
-``setup-mlx`` only installs the mlx-vlm package (after confirmation) and
-prints preparation guidance.
+``setup-mlx`` only installs the mlx-vlm and jinja2 packages (after
+confirmation) and prints preparation guidance.
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def _version() -> str:
     try:
         return _pkg_version("memosight")
     except PackageNotFoundError:
-        return "0.2.0"
+        return "0.2.1"
 
 
 def _server_url() -> str:
@@ -266,25 +266,40 @@ def _run_serve(args: argparse.Namespace) -> int:
 
 
 def _run_setup_mlx(args: argparse.Namespace) -> int:
-    if importlib.util.find_spec("mlx_vlm") is not None:
+    # mlx-vlm renders chat templates through jinja2 but does not declare it
+    # as a dependency, so install/verify both together.
+    missing = [
+        pkg
+        for pkg, module in (("mlx-vlm", "mlx_vlm"), ("jinja2", "jinja2"))
+        if importlib.util.find_spec(module) is None
+    ]
+    if not missing:
         try:
             version = _pkg_version("mlx-vlm")
         except PackageNotFoundError:
             version = "unknown"
         print(f"mlx-vlm is already installed ({version}).")
     else:
-        print("mlx-vlm is not installed. It provides the local VLM server")
-        print("(mlx_vlm.server) that memosight talks to.")
+        print(f"Missing packages: {', '.join(missing)}. mlx-vlm provides the")
+        print("local VLM server (mlx_vlm.server) that memosight talks to;")
+        print("jinja2 is required by mlx-vlm for chat template rendering.")
         print("Note: memosight never downloads models; model weights are")
         print("always prepared explicitly by you.")
         if not args.yes:
-            answer = input("Install it now via `pip install mlx-vlm`? [y/N] ")
+            answer = input(
+                f"Install now via `pip install {' '.join(missing)}`? [y/N] "
+            )
             if answer.strip().lower() not in {"y", "yes"}:
                 print("Aborted; nothing was installed.")
                 return 1
-        rc = subprocess.call([sys.executable, "-m", "pip", "install", "mlx-vlm"])
+        rc = subprocess.call(
+            [sys.executable, "-m", "pip", "install", *missing]
+        )
         if rc != 0:
-            print("memosight: mlx-vlm installation failed.", file=sys.stderr)
+            print(
+                f"memosight: installation failed ({', '.join(missing)}).",
+                file=sys.stderr,
+            )
             return rc
 
     print(
@@ -469,7 +484,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_setup = sub.add_parser(
         "setup-mlx",
-        help="install mlx-vlm (with confirmation) and print model setup guidance",
+        help="install mlx-vlm and jinja2 (with confirmation) and print model setup guidance",
     )
     p_setup.add_argument(
         "--yes", action="store_true", help="do not prompt before pip install"
