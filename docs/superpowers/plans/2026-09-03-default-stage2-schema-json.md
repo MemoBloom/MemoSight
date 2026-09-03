@@ -904,3 +904,30 @@ git commit -m "docs: describe schema-driven JSON stage two for all profiles"
 - 占位符：无 TBD/TODO；所有代码步骤含完整代码。
 - 类型一致：`PHOTOGRAPHY_DEFAULT_FIELDS_SCHEMA`（Task 1 产出 → Task 3/测试消费）；`prompt.max_tokens == 224`（Task 2 产出 → Task 3 测试断言消费）；`extract_fields` 返回 `MemoSightFieldExtractionResult`（Task 4 消费其 `.status/.fields/.raw_output/.validation.issues/.usage`）。
 - 已知取舍：Task 4 的 `missing_fields` 为嵌套 list，仅用于报告展示，不影响判定指标。
+
+---
+
+## 迭代记录（2026-09-03，首轮基准后）
+
+首轮基准（120 条固定 caption，配对交替）：Markdown 99/120 ok，JSON 68/120 ok。
+JSON 失败 52 条中 50 条为 max_tokens=224 截断（模型模仿 prompt 中的
+pretty-print 示例输出带缩进 JSON，约 454 字符处被截断），缺字段失败仅 2 条
+（vs Markdown 21 条）。结论：schema-driven JSON 确实消灭了丢字段故障模式，
+但 token 预算不足引入更严重的截断故障。
+
+**Task 4b（插入，用户批准）**：紧凑 JSON 迭代
+
+1. `memosight/config/default_prompts.json`：zh/en `caption_json_stage`
+   `max_tokens` 224 → 384；rules 各加一条：
+   - zh：`- 输出单行紧凑 JSON，不要缩进、换行或多余空白。`
+   - en：`- Output compact single-line JSON: no indentation, line breaks, or extra whitespace.`
+2. `memosight/prompts.py`：`build_caption_structured_extraction_prompt` 的示例
+   改为紧凑单行渲染（新增 `_render_example_object_compact` /
+   `_compact_placeholder_for` 辅助函数；`_render_example_object` 保持供
+   一段式 `build_prompt` 使用，不动）。
+3. 测试：`max_tokens == 224` 断言全部改 384（`tests/test_memosight_prompts.py`、
+   `tests/test_two_stage_pipeline.py`）；新增紧凑示例断言（CUSTOM_SCHEMA 的
+   示例必须是单行 `{"product_type": "...", "brand_visible": true, "mood": "warm", "dominant_colors": []}`，
+   且 zh prompt 含"紧凑"）。
+4. 重跑 `.venv/bin/python scripts/compare_stage2_markdown_vs_json.py`
+   （caption 缓存已就绪，stage-1 不重跑），按 Task 5 的判定标准重新评估。
