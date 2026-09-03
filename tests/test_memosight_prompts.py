@@ -328,3 +328,22 @@ def test_caption_structured_extraction_prompt_accepts_config_override():
     assert prompt.system == "自定义二段式 JSON 系统提示。"
     assert "自定义 caption JSON 字段：" in prompt.text
     assert prompt.text.endswith("自定义二段式 JSON 输出规则。")
+
+
+def test_caption_structured_extraction_prompt_has_default_max_tokens():
+    profile = resolve_profile(output_schema=CUSTOM_SCHEMA)
+    prompt = build_caption_structured_extraction_prompt("黑色手表。", profile)
+
+    assert prompt.max_tokens == 224
+
+
+def test_caption_structured_extraction_prompt_max_tokens_config_override():
+    config = {"zh": {"caption_json_stage": {"max_tokens": 96}}}
+
+    prompt = build_caption_structured_extraction_prompt(
+        "黑色手表。",
+        resolve_profile(output_schema=CUSTOM_SCHEMA),
+        prompt_config=config,
+    )
+
+    assert prompt.max_tokens == 96

@@ -123,6 +123,7 @@ def build_caption_structured_extraction_prompt(
         "system",
         section="caption_json_stage",
     )
+    max_tokens = stage_config.get("max_tokens")
 
     schema = profile.output_schema
     properties = schema.get("properties", {})
@@ -179,6 +180,7 @@ def build_caption_structured_extraction_prompt(
         language=lang,
         system=system,
         schema_name=f"{profile.schema_name}_caption_json",
+        max_tokens=max_tokens if isinstance(max_tokens, int) else None,
     )
 
 
