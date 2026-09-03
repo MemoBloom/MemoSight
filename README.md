@@ -125,7 +125,7 @@ pytest tests/
 ## Quick Start
 
 ```bash
-memosight setup-mlx        # install mlx-vlm (asks first); prints model guidance
+memosight setup-mlx        # install mlx-vlm + jinja2 (asks first); prints model guidance
 memosight serve --model /path/to/your-vlm --port 8080   # start the local server
 memosight doctor           # verify the setup
 memosight analyze photo.jpg --language zh --profile photography_default
@@ -171,7 +171,9 @@ See [`memosight-skill/`](./memosight-skill) for other agent targets.
 MemoSight talks to a local [mlx-vlm](https://github.com/Blaizzy/mlx-vlm)
 server; it does not load models in-process.
 
-1. Install mlx-vlm: `memosight setup-mlx` (or `pip install mlx-vlm`).
+1. Install mlx-vlm: `memosight setup-mlx` (or `pip install mlx-vlm jinja2` —
+   jinja2 is required by mlx-vlm for chat template rendering but is not
+   declared as its dependency).
 2. Prepare model weights yourself — the benchmarks and examples in this repo
    were validated with
    [`mlx-community/Qwen3.5-2B-MLX-4bit`](https://huggingface.co/mlx-community/Qwen3.5-2B-MLX-4bit),
@@ -223,8 +225,8 @@ memosight prompt --schema FILE [--plan FILE] [--language zh|en]
   failing check prints concrete remediation advice.
 - `serve` wraps `mlx_vlm.server`; extra arguments after `--` are passed
   through.
-- `setup-mlx` installs the mlx-vlm package only after your confirmation and
-  never downloads model weights.
+- `setup-mlx` installs the mlx-vlm and jinja2 packages only after your
+  confirmation and never downloads model weights.
 - `prompt` renders the prompts for a custom output schema without calling any
   model: the one-stage image→JSON prompt and both two-stage prompts
   (image→caption and caption→JSON). `--plan` merges a prompt plan
@@ -422,6 +424,9 @@ Common causes:
 - **`MEMOSIGHT_MLX_MODEL_NAME` mismatch** — doctor lists the model ids the
   server reports; fix the variable or unset it to use the first model.
 - **`mlx-vlm` missing** — `memosight setup-mlx`.
+- **`jinja2` missing** (server fails with `pip install jinja2` when rendering
+  chat templates) — mlx-vlm needs it but does not declare it; re-run
+  `memosight setup-mlx` (v0.2.1+ installs both) or `pip install jinja2`.
 
 ## Privacy
 

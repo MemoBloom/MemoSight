@@ -115,7 +115,7 @@ pytest tests/
 ## 快速开始
 
 ```bash
-memosight setup-mlx        # 安装 mlx-vlm（会先询问）；打印模型指引
+memosight setup-mlx        # 安装 mlx-vlm + jinja2（会先询问）；打印模型指引
 memosight serve --model /path/to/your-vlm --port 8080   # 启动本地服务器
 memosight doctor           # 验证安装与配置
 memosight analyze photo.jpg --language zh --profile photography_default
@@ -161,7 +161,8 @@ JSON.` 其他 agent 目标平台见 [`memosight-skill/`](./memosight-skill)。
 MemoSight 与本地 [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) 服务器
 通信，不在进程内加载模型。
 
-1. 安装 mlx-vlm：`memosight setup-mlx`（或 `pip install mlx-vlm`）。
+1. 安装 mlx-vlm：`memosight setup-mlx`（或 `pip install mlx-vlm jinja2`——
+   mlx-vlm 渲染聊天模板需要 jinja2，但没有把它声明为依赖）。
 2. 自行准备模型权重——本仓库的基准测试和示例均使用
    [`mlx-community/Qwen3.5-2B-MLX-4bit`](https://huggingface.co/mlx-community/Qwen3.5-2B-MLX-4bit)
    验证，是 Apple Silicon 上不错的默认选择：
@@ -212,7 +213,7 @@ memosight prompt --schema FILE [--plan FILE] [--language zh|en]
   `/health` 和 `/v1/models`，以及已加载的模型——每个失败项都会打印
   具体的修复建议。
 - `serve` 包装 `mlx_vlm.server`；`--` 之后的额外参数会原样透传。
-- `setup-mlx` 只在你确认后安装 mlx-vlm 包，绝不下载模型权重。
+- `setup-mlx` 只在你确认后安装 mlx-vlm 和 jinja2 包，绝不下载模型权重。
 - `prompt` 在不调用任何模型的情况下渲染自定义输出 schema 的 prompt：
   一段式的「图片→JSON」prompt 和两段式的两个 prompt（「图片→caption」
   和「caption→JSON」）。`--plan` 将 prompt 方案（`task_summary` /
@@ -406,6 +407,9 @@ prompt。
 - **`MEMOSIGHT_MLX_MODEL_NAME` 不匹配** —— doctor 会列出服务器报告的
   模型 id；修正该变量，或取消设置以使用第一个模型。
 - **缺少 `mlx-vlm`** —— 运行 `memosight setup-mlx`。
+- **缺少 `jinja2`**（服务器渲染聊天模板时报 `pip install jinja2`）——
+  mlx-vlm 需要它但没有声明依赖；重新运行 `memosight setup-mlx`
+  （v0.2.1+ 会一并安装）或 `pip install jinja2`。
 
 ## 隐私
 
