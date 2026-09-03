@@ -972,3 +972,10 @@ JSON stage-2 的完整性优势确认（120/120 vs Markdown 99/120），但其�
    输出 ~159 字符（JSON 路径 ~3.3s / 460 字符）。
 3. 决定：默认 profile 两段式 stage-2 回退为 Markdown（收尾契约模板）；
    自定义/命名 profile 维持 schema 驱动 JSON。
+
+**A1 全量配对基准（2026-09-03，120 条 fixed caption，2B-4bit）**：
+Markdown(契约 v2) 与 JSON 均 120/120 ok、0 缺字段；文本 avg 2.096s vs 5.522s
+（p95 3.309s vs 7.484s）；输出约 7.9 vs 24.4 项（md 以逗号计项、空格分隔短语
+未计入）。结论：默认 stage-2 用 Markdown 契约模板后，完整性与 JSON 持平、
+耗时约为 JSON 的 38%。HTML 对比页由 scripts/make_stage2_markdown_vs_json_review.py
+生成到 results/（不入库）。
