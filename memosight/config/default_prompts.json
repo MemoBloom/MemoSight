@@ -30,8 +30,8 @@
     },
     "caption_json_stage": {
       "system": "你是 MemoSight caption 结构化抽取助手。只使用 caption 明确写出的事实，不要猜测、补充或推断图片中未写出的信息。",
-      "rules": "抽取要求：\n- 只输出一个 JSON 对象，不要使用 Markdown 代码块，不要输出任何解释。\n- 上面给出的字段名（含嵌套字段）必须全部出现，不要新增字段。\n- 字段名、嵌套结构和类型必须严格匹配上面的 JSON 字段定义。\n- caption 没有明确写出的内容：非枚举字符串用空字符串，数组用空数组，布尔值在 caption 没有明确支持该判断时用 false。\n- 枚举字段只能从给定可选值中挑选；如果枚举值明确包含 \"unknown\"，证据不足时可以使用该值。\n- 多值字段使用数组；遵守每个字段的最大条目数限制。",
-      "max_tokens": 224
+      "rules": "抽取要求：\n- 只输出一个 JSON 对象，不要使用 Markdown 代码块，不要输出任何解释。\n- 上面给出的字段名（含嵌套字段）必须全部出现，不要新增字段。\n- 字段名、嵌套结构和类型必须严格匹配上面的 JSON 字段定义。\n- caption 没有明确写出的内容：非枚举字符串用空字符串，数组用空数组，布尔值在 caption 没有明确支持该判断时用 false。\n- 枚举字段只能从给定可选值中挑选；如果枚举值明确包含 \"unknown\"，证据不足时可以使用该值。\n- 多值字段使用数组；遵守每个字段的最大条目数限制。\n- 输出单行紧凑 JSON，不要缩进、换行或多余空白。",
+      "max_tokens": 384
     }
   },
   "en": {
@@ -65,8 +65,8 @@
     },
     "caption_json_stage": {
       "system": "You are the MemoSight caption structured extraction assistant. Use only facts explicitly stated in the caption. Do not guess, add, or infer unstated image details.",
-      "rules": "Extraction rules:\n- Output exactly one JSON object. No Markdown fences, no explanations.\n- Every field name above, including nested fields, must appear; do not add fields.\n- Field names, nesting, and types must strictly match the JSON field definitions above.\n- For content not explicitly stated in the caption: use an empty string for non-enum strings, empty arrays for arrays, and false for booleans unless the caption explicitly supports true.\n- For enum fields, choose only from the listed choices; if an enum explicitly includes \"unknown\", use that value when evidence is insufficient.\n- Use arrays for multi-value fields and respect each field's maximum item count.",
-      "max_tokens": 224
+      "rules": "Extraction rules:\n- Output exactly one JSON object. No Markdown fences, no explanations.\n- Every field name above, including nested fields, must appear; do not add fields.\n- Field names, nesting, and types must strictly match the JSON field definitions above.\n- For content not explicitly stated in the caption: use an empty string for non-enum strings, empty arrays for arrays, and false for booleans unless the caption explicitly supports true.\n- For enum fields, choose only from the listed choices; if an enum explicitly includes \"unknown\", use that value when evidence is insufficient.\n- Use arrays for multi-value fields and respect each field's maximum item count.\n- Output compact single-line JSON: no indentation, line breaks, or extra whitespace.",
+      "max_tokens": 384
     }
   }
 }

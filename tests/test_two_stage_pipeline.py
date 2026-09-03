@@ -102,7 +102,7 @@ async def test_prompts_are_short_and_single_purpose(tmp_path):
     assert len(field_prompt.system) < 80
     assert "室内暖光下的一人站在桌旁" in field_prompt.text
     assert field_prompt.schema_name == "photography_default_caption_json"
-    assert field_prompt.max_tokens == 224
+    assert field_prompt.max_tokens == 384
 
 
 @pytest.mark.asyncio

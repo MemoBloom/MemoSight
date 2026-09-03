@@ -150,7 +150,7 @@ def build_caption_structured_extraction_prompt(
             )
         )
     lines.append("")
-    lines.append(_render_example_object(properties, language=lang, labels=labels))
+    lines.append(_render_example_object_compact(properties, language=lang, labels=labels))
     lines.append("")
     lines.extend(
         _render_prompt_plan_lines(
@@ -385,6 +385,35 @@ def _render_example_object(
     label = _label(labels, "example_shape", language=language)
     body = _render_example_entries(properties, indent=1)
     return f"{label}\n{{\n{body}\n}}"
+
+
+def _render_example_object_compact(
+    properties: dict[str, Any],
+    *,
+    language: str,
+    labels: dict[str, Any],
+) -> str:
+    """Render the example as single-line compact JSON for small text models.
+
+    Two-stage caption extraction runs on a tight token budget; a pretty-printed
+    example teaches the model to burn tokens on indentation and newlines.
+    """
+    label = _label(labels, "example_shape", language=language)
+    body = ", ".join(
+        f'"{name}": {_compact_placeholder_for(spec)}'
+        for name, spec in properties.items()
+    )
+    return f"{label}\n{{{body}}}"
+
+
+def _compact_placeholder_for(spec: dict[str, Any]) -> str:
+    if spec.get("type") == "object":
+        inner = ", ".join(
+            f'"{name}": {_compact_placeholder_for(child)}'
+            for name, child in spec.get("properties", {}).items()
+        )
+        return "{" + inner + "}"
+    return _placeholder_for(spec)
 
 
 def _label(labels: dict[str, Any] | None, key: str, *, language: str) -> str:

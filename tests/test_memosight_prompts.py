@@ -335,7 +335,7 @@ def test_caption_structured_extraction_prompt_has_default_max_tokens():
     profile = resolve_profile(output_schema=CUSTOM_SCHEMA)
     prompt = build_caption_structured_extraction_prompt("黑色手表。", profile)
 
-    assert prompt.max_tokens == 224
+    assert prompt.max_tokens == 384
 
 
 def test_caption_structured_extraction_prompt_max_tokens_config_override():
@@ -359,7 +359,18 @@ def test_default_fields_schema_prompt_lists_seven_fields_without_caption():
     prompt = build_caption_structured_extraction_prompt("室内暖光下的人。", profile)
 
     assert prompt.schema_name == "photography_default_caption_json"
-    assert prompt.max_tokens == 224
+    assert prompt.max_tokens == 384
     for field in CAPTION_FIELD_KEYS:
         assert f'"{field}"' in prompt.text
     assert '"caption"' not in prompt.text
+
+
+def test_caption_structured_extraction_prompt_example_is_compact_single_line():
+    profile = resolve_profile(output_schema=CUSTOM_SCHEMA)
+    prompt = build_caption_structured_extraction_prompt("黑色手表。", profile)
+
+    assert (
+        '示例结构：\n{"product_type": "...", "brand_visible": true, '
+        '"mood": "warm", "dominant_colors": []}'
+    ) in prompt.text
+    assert "紧凑" in prompt.text
