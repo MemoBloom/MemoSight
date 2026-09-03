@@ -123,6 +123,22 @@ _PHOTOGRAPHY_DEFAULT_SCHEMA: dict[str, Any] = {
     ],
 }
 
+# Stage-two extraction schema for the default profile: the seven retrieval
+# fields only. ``caption`` is dropped because stage one already produced it
+# and the pipeline pins it; asking the model to regenerate it wastes output
+# tokens and risks truncation.
+PHOTOGRAPHY_DEFAULT_FIELDS_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        key: spec
+        for key, spec in _PHOTOGRAPHY_DEFAULT_SCHEMA["properties"].items()
+        if key != "caption"
+    },
+    "required": [
+        key for key in _PHOTOGRAPHY_DEFAULT_SCHEMA["required"] if key != "caption"
+    ],
+}
+
 _WEDDING_SELECTION_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {

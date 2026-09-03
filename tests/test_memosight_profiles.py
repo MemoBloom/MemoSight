@@ -233,3 +233,22 @@ def test_nested_object_required_is_schema_validated():
     }
     with pytest.raises(MemoSightSchemaError, match="list of field names"):
         validate_output_schema(bad_shape)
+
+
+def test_default_fields_schema_drops_caption_and_requires_seven_fields():
+    from memosight.normalizer import CAPTION_FIELD_KEYS
+    from memosight.profiles import (
+        PHOTOGRAPHY_DEFAULT_FIELDS_SCHEMA,
+        PROFILES,
+    )
+
+    schema = PHOTOGRAPHY_DEFAULT_FIELDS_SCHEMA
+    full = PROFILES["photography_default"].output_schema
+
+    assert schema["type"] == "object"
+    assert set(schema["properties"]) == set(CAPTION_FIELD_KEYS)
+    assert "caption" not in schema["properties"]
+    assert sorted(schema["required"]) == sorted(CAPTION_FIELD_KEYS)
+    # 字段 spec 与完整 schema 共享同一对象，不允许漂移。
+    for key in CAPTION_FIELD_KEYS:
+        assert schema["properties"][key] is full["properties"][key]
