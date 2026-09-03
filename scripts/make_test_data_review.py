@@ -1,10 +1,10 @@
 """Build per-video side-by-side review pages plus an index for test_data runs.
 
-Reads results/test_data_compare_one_vs_v5.json (produced by
+Reads results/test_data_compare_one_vs_two_stage.json (produced by
 run_test_data_compare.py) and writes one HTML page per video under
-results/test_data_review/, reusing make_side_by_side_review.HTML with the
-v5 relabeling from make_one_stage_vs_v5_review.py, plus an index.html that
-links to every video page with its summary numbers.
+results/test_data_review_one_vs_two_stage/, reusing
+make_side_by_side_review.HTML with relabeling, plus an index.html that links
+to every video page with its summary numbers.
 """
 from __future__ import annotations
 
@@ -15,17 +15,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from make_side_by_side_review import HTML
 
-SOURCE = Path("results/test_data_compare_one_vs_v5.json")
-OUTPUT_DIR = Path("results/test_data_review")
+SOURCE = Path("results/test_data_compare_one_vs_two_stage.json")
+OUTPUT_DIR = Path("results/test_data_review_one_vs_two_stage")
 
 LABEL_REPLACEMENTS = [
     ("<span>单阶段 <strong", "<span>一段式 <strong"),
-    ("<span>两阶段 <strong", "<span>两段式 v5 <strong"),
-    ("平均提速", "v5 耗时变化"),
+    ("<span>两阶段 <strong", "<span>两段式 <strong"),
+    ("平均提速", "两段式耗时变化"),
     ("单阶段 JSON", "一段式 JSON"),
-    ("两阶段 Caption → Fields", "两段式 v5（caption → fields）"),
-    ("<span>两阶段</span>", "<span>两段式 v5</span>"),
-    ("两阶段拆分：Caption", "v5 拆分：Caption"),
+    ("两阶段 Caption → Fields", "两段式（caption → 7 行 Markdown 契约）"),
+    ("<span>两阶段</span>", "<span>两段式</span>"),
+    ("两阶段拆分：Caption", "两段式拆分：Caption"),
 ]
 
 VIDEO_TITLES = {
@@ -44,7 +44,7 @@ INDEX_HTML = """<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MemoSight · 一段式 vs 两段式 v5 · 测试数据总览</title>
+  <title>MemoSight · 一段式 vs 两段式 · 测试数据总览</title>
   <style>
     body {{ margin: 0; padding: 32px 22px; background: #f4f6f8; color: #14181f;
            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; }}
@@ -64,8 +64,8 @@ INDEX_HTML = """<!doctype html>
   </style>
 </head>
 <body>
-  <h1>MemoSight · 一段式 vs 两段式 v5</h1>
-  <p class="meta">模型 {model_id} · 每个视频 20 帧 · 点击卡片进入逐帧对比</p>
+  <h1>MemoSight · 一段式 vs 两段式</h1>
+  <p class="meta">模型 {model_id} · 每个视频 10 帧 · 点击卡片进入逐帧对比</p>
   <div class="grid">
 {cards}
   </div>
@@ -78,7 +78,7 @@ CARD_HTML = """    <a class="card" href="{page}">
       <h2>{title}</h2>
       <div class="stats">
         <span>一段式 <strong>{one_avg:.3f}s</strong> ({one_ok}/{n})</span>
-        <span>v5 <strong>{two_avg:.3f}s</strong> ({two_ok}/{n})</span>
+        <span>两段式 <strong>{two_avg:.3f}s</strong> ({two_ok}/{n})</span>
         <span class="{delta_class}">{delta:+.1f}%</span>
       </div>
     </a>"""

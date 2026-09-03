@@ -1,8 +1,9 @@
-"""Run one-stage vs two-stage v5 comparison on every video in test_data/.
+"""Run one-stage vs two-stage (current default profile) comparison on test_data/.
 
 For each subdirectory of test_data/ (one per video), runs both variants on all
 sampled frames with alternating execution order after a shared warm-up, then
-writes results/test_data_compare_one_vs_v5.json with per-video records.
+writes results/test_data_compare_one_vs_two_stage.json with per-video records.
+The two-stage variant is whatever the default profile currently uses.
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ from memosight import (
 from memosight.mlx_client import MlXVlmClient
 
 TEST_DATA_DIR = Path("test_data")
-OUT_PATH = Path("results/test_data_compare_one_vs_v5.json")
+OUT_PATH = Path("results/test_data_compare_one_vs_two_stage.json")
 LANGUAGE = "zh"
 
 
@@ -166,7 +167,11 @@ def build_video_summary(records: list[dict]) -> dict:
 
 
 async def main() -> None:
-    video_dirs = sorted(path for path in TEST_DATA_DIR.iterdir() if path.is_dir())
+    video_dirs = sorted(
+        path
+        for path in TEST_DATA_DIR.iterdir()
+        if path.is_dir() and any(path.glob("*.jpg"))
+    )
     if not video_dirs:
         raise RuntimeError(f"No video directories found in {TEST_DATA_DIR}")
 

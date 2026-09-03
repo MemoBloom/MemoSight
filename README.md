@@ -35,7 +35,7 @@ and Pydantic.
   preview the exact prompts with `memosight prompt` before spending a single
   model call.
 - **Two-stage option for small models.** Split visual understanding into
-  image→caption and caption→fields calls — ~1.9x faster and more reliable on
+  image→caption and caption→fields calls — ~1.7x faster and more reliable on
   small local VLMs (see Benchmarks), with an independently retryable second
   stage.
 - **Bilingual prompts.** Prompt construction in Chinese or English from the
@@ -76,34 +76,37 @@ validation are pipeline responsibilities — backend output is never trusted.
 ## Benchmarks
 
 Measured on an Apple M5 (32 GB) with a local Qwen3.5-2B-MLX-4bit served by
-`mlx_vlm.server`: 8 short videos (food, travel, unboxing, vlog — 207s to 1047s
-each), 20 evenly spaced frames per video, 160 frames total, alternating
-execution order after warm-up.
+`mlx_vlm.server`: 9 short videos (food, travel, unboxing, vlog, tutorial),
+10 evenly spaced frames per video, 90 frames total, alternating execution
+order after warm-up.
 
 | Video | One-stage JSON | Two-stage | Speedup |
 | --- | ---: | ---: | ---: |
-| Mukbang (hot dog + cheese) | 7.64s | 3.88s | **1.97x** |
-| Disney clip | 7.84s | 3.68s | **2.13x** |
-| 17-min shopping haul | 7.74s | 3.93s | **1.97x** |
-| Cuba travel documentary | 9.70s | 5.64s | **1.72x** |
-| Makeup unboxing | 8.84s | 4.51s | **1.96x** |
-| Luosifen food vlog | 8.70s | 4.67s | **1.86x** |
-| Korea errand-runner vlog | 6.86s | 3.93s | **1.75x** |
-| Australia travel vlog | 6.80s | 3.63s | **1.87x** |
-| **All 160 frames** | **8.01s avg** | **4.23s avg** | **1.89x** |
+| Mukbang (hot dog + cheese) | 3.87s | 2.30s | **1.68x** |
+| Disney clip | 3.89s | 1.99s | **1.95x** |
+| 17-min shopping haul | 6.01s | 3.38s | **1.78x** |
+| Cuba travel documentary | 6.30s | 3.87s | **1.63x** |
+| Makeup unboxing | 6.22s | 3.83s | **1.62x** |
+| Luosifen food vlog | 6.36s | 3.59s | **1.77x** |
+| Korea errand-runner vlog | 6.48s | 4.03s | **1.61x** |
+| Australia travel vlog | 5.09s | 3.05s | **1.67x** |
+| Squat tutorial | 5.26s | 3.36s | **1.56x** |
+| **All 90 frames** | **5.50s avg** | **3.27s avg** | **1.68x** |
 
-- The two-stage split is cheap: caption ≈ 1.74s, field extraction ≈ 2.50s.
-- Reliability: one-stage 158/160 `ok`; two-stage 142/160 `ok` plus 18
-  `partial` (stage two hiccup — the caption is still returned, and
-  `extract_fields(caption)` retries without touching the image again). Zero
-  hard failures.
-- Frame sets live in `test_data/` (10 frames per video bundled; the benchmark
-  ran on 20). Raw numbers and an interactive per-frame side-by-side review
-  page are generated locally — `scripts/run_test_data_compare.py` writes
-  `results/test_data_compare_one_vs_v5.json` and
+- The two-stage split is cheap: caption ≈ 1.55s, field extraction ≈ 1.72s.
+- Reliability: one-stage 90/90 `ok`; two-stage 90/90 `ok` — zero `partial`,
+  zero hard failures. The complete-output Markdown contract for the default
+  profile (exactly seven field lines, output must finish on `search_tags`)
+  removed the early-stop failures of the legacy template. Even if stage two
+  hiccups, the caption is still returned and `extract_fields(caption)`
+  retries without touching the image again.
+- Frame sets live in `test_data/` (the same 10 frames per video the
+  benchmark ran on). Raw numbers and an interactive per-frame side-by-side
+  review page are generated locally — `scripts/run_test_data_compare.py`
+  writes `results/test_data_compare_one_vs_two_stage.json` and
   `scripts/make_test_data_review.py` turns it into
-  `results/test_data_review/index.html` (the `results/` directory is
-  gitignored).
+  `results/test_data_review_one_vs_two_stage/index.html` (the `results/`
+  directory is gitignored).
 
 ## Install
 
