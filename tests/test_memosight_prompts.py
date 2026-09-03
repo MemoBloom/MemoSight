@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import pytest
 
+from memosight.normalizer import CAPTION_FIELD_KEYS
 from memosight.profiles import get_profile, resolve_profile
 from memosight.prompt_designer import MemoSightPromptPlan
 from memosight.prompts import (
@@ -347,3 +348,18 @@ def test_caption_structured_extraction_prompt_max_tokens_config_override():
     )
 
     assert prompt.max_tokens == 96
+
+
+def test_default_fields_schema_prompt_lists_seven_fields_without_caption():
+    from memosight.profiles import PHOTOGRAPHY_DEFAULT_FIELDS_SCHEMA
+
+    profile = get_profile("photography_default").model_copy(
+        update={"output_schema": PHOTOGRAPHY_DEFAULT_FIELDS_SCHEMA}
+    )
+    prompt = build_caption_structured_extraction_prompt("室内暖光下的人。", profile)
+
+    assert prompt.schema_name == "photography_default_caption_json"
+    assert prompt.max_tokens == 224
+    for field in CAPTION_FIELD_KEYS:
+        assert f'"{field}"' in prompt.text
+    assert '"caption"' not in prompt.text
