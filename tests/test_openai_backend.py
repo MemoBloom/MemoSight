@@ -161,3 +161,63 @@ def test_pipeline_integration_end_to_end(tmp_path):
     assert result.observation["caption"] == "mock caption"
     assert result.model_name == "openai_compat"
     assert result.usage["parse_strategy"] == "strict"
+
+
+def test_chat_template_kwargs_forwarded_when_set(tmp_path):
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content)
+        return _chat_response('{"caption": "a cat"}')
+
+    backend = OpenAICompatBackend(
+        "http://test/v1",
+        "test-model",
+        transport=httpx.MockTransport(handler),
+        chat_template_kwargs={"enable_thinking": False},
+    )
+    source = _make_source(tmp_path)
+    prompt = build_prompt(get_profile("photography_default"))
+
+    asyncio.run(backend.describe(source, prompt))
+
+    assert captured["payload"]["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+def test_chat_template_kwargs_absent_by_default(tmp_path):
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content)
+        return _chat_response("ok")
+
+    backend = OpenAICompatTextBackend(
+        "http://test/v1",
+        "test-model",
+        transport=httpx.MockTransport(handler),
+    )
+    prompt = build_caption_field_extraction_prompt('{"caption": "a cat"}')
+
+    asyncio.run(backend.complete(prompt))
+
+    assert "chat_template_kwargs" not in captured["payload"]
+
+
+def test_text_backend_chat_template_kwargs_forwarded_when_set():
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content)
+        return _chat_response("ok")
+
+    backend = OpenAICompatTextBackend(
+        "http://test/v1",
+        "test-model",
+        transport=httpx.MockTransport(handler),
+        chat_template_kwargs={"enable_thinking": False},
+    )
+    prompt = build_caption_field_extraction_prompt('{"caption": "a cat"}')
+
+    asyncio.run(backend.complete(prompt))
+
+    assert captured["payload"]["chat_template_kwargs"] == {"enable_thinking": False}

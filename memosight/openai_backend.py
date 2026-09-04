@@ -100,7 +100,13 @@ class _OpenAICompatBase:
 
 
 class OpenAICompatBackend(_OpenAICompatBase):
-    """MemoSight image backend over an OpenAI-compatible vision server."""
+    """MemoSight image backend over an OpenAI-compatible vision server.
+
+    ``chat_template_kwargs`` is forwarded verbatim in the request payload
+    (e.g. ``{'enable_thinking': False}`` to disable Qwen3-style thinking on
+    a vLLM server) so per-request chat-template variables stay reachable
+    without a server restart.
+    """
 
     name = "openai_compat"
     version = "1.0.0"
@@ -113,6 +119,7 @@ class OpenAICompatBackend(_OpenAICompatBase):
         api_key: str | None = None,
         timeout_s: float = 60.0,
         transport: httpx.AsyncBaseTransport | None = None,
+        chat_template_kwargs: dict | None = None,
     ) -> None:
         super().__init__(
             base_url,
@@ -121,6 +128,7 @@ class OpenAICompatBackend(_OpenAICompatBase):
             timeout_s=timeout_s,
             transport=transport,
         )
+        self._chat_template_kwargs = chat_template_kwargs
 
     async def describe(
         self, image: ResolvedImageSource, prompt: MemoSightPrompt
@@ -157,6 +165,8 @@ class OpenAICompatBackend(_OpenAICompatBase):
                 "max_tokens": prompt.max_tokens or 768,
                 "temperature": 0.1,
             }
+            if self._chat_template_kwargs:
+                payload["chat_template_kwargs"] = self._chat_template_kwargs
             return await self._complete_chat(payload)
         except Exception as exc:
             raise MemoSightBackendError(
@@ -167,7 +177,11 @@ class OpenAICompatBackend(_OpenAICompatBase):
 
 
 class OpenAICompatTextBackend(_OpenAICompatBase):
-    """Text-only MemoSight backend over an OpenAI-compatible server."""
+    """Text-only MemoSight backend over an OpenAI-compatible server.
+
+    Supports the same ``chat_template_kwargs`` payload passthrough as
+    :class:`OpenAICompatBackend`.
+    """
 
     name = "openai_compat_text"
     version = "1.0.0"
@@ -180,6 +194,7 @@ class OpenAICompatTextBackend(_OpenAICompatBase):
         api_key: str | None = None,
         timeout_s: float = 60.0,
         transport: httpx.AsyncBaseTransport | None = None,
+        chat_template_kwargs: dict | None = None,
     ) -> None:
         super().__init__(
             base_url,
@@ -188,6 +203,7 @@ class OpenAICompatTextBackend(_OpenAICompatBase):
             timeout_s=timeout_s,
             transport=transport,
         )
+        self._chat_template_kwargs = chat_template_kwargs
 
     async def complete(self, prompt: MemoSightPrompt) -> str:
         """Run a text-only completion for ``prompt``."""
@@ -202,6 +218,8 @@ class OpenAICompatTextBackend(_OpenAICompatBase):
                 "max_tokens": prompt.max_tokens or 384,
                 "temperature": 0.1,
             }
+            if self._chat_template_kwargs:
+                payload["chat_template_kwargs"] = self._chat_template_kwargs
             return await self._complete_chat(payload)
         except Exception as exc:
             raise MemoSightBackendError(
