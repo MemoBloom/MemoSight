@@ -108,6 +108,29 @@ order after warm-up.
   `results/test_data_review_one_vs_two_stage/index.html` (the `results/`
   directory is gitignored).
 
+### Validated on NVIDIA
+
+The same 90-frame paired comparison also passes on an NVIDIA deployment
+(vLLM serving Qwen3.6-27B on A100 80GB GPUs), with thinking disabled per
+request via `chat_template_kwargs={"enable_thinking": False}`:
+
+| Path | Result |
+| --- | ---: |
+| One-stage JSON | 5.83s avg, 90/90 ok |
+| Two-stage | 3.65s avg (caption 1.53s + fields 2.12s), 90/90 ok |
+
+The two-stage split holds at 27B scale — **1.60x faster** with the same
+zero-failure reliability, and absolute latency within noise of the 2B mlx
+run, so the 27B model's quality ceiling costs nothing in speed. Do not run
+this deployment with thinking enabled: the reasoning block consumes the
+`max_tokens` budget and truncates the structured output before it can be
+parsed (one-stage calls degraded to 16–33s with hard failures; two-stage
+field extraction failed on every attempt). Disable thinking per request —
+no server restart needed; see [Thinking models](#thinking-models).
+
+Raw numbers: `scripts/run_test_data_compare_openai.py` writes
+`results/test_data_compare_openai.json` (gitignored).
+
 ## Install
 
 Homebrew (tap):
@@ -241,6 +264,31 @@ pipeline = MemoSightPipeline(
 `$MEMOSIGHT_OPENAI_MODEL`; when no model name is configured, the model id is
 resolved once from `/v1/models`. Set `$MEMOSIGHT_OPENAI_API_KEY` for Bearer
 auth (not needed for a local vLLM server).
+
+### Thinking models
+
+Reasoning ("thinking") models emit a `<think>` block before the structured
+output and burn the response `max_tokens` budget on it — measured with a
+locally served Qwen3.6-27B (vLLM): one-stage calls slowed to 16–33s and
+truncated the JSON into hard failures, and two-stage field extraction failed
+on every frame because thinking consumed the entire 384-token budget.
+Disable thinking per request with `chat_template_kwargs` — no server restart
+needed:
+
+```python
+pipeline = MemoSightPipeline(
+    backend=OpenAICompatBackend(
+        "http://localhost:8000/v1",
+        "Qwen/Qwen3.6-27B",
+        chat_template_kwargs={"enable_thinking": False},
+    )
+)
+```
+
+The dict is forwarded verbatim in every `/v1/chat/completions` payload (the
+image and text backends alike). With thinking disabled, the 90-frame
+benchmark on this deployment completes with zero failures — see
+[Validated on NVIDIA](#validated-on-nvidia).
 
 ## CLI Usage
 

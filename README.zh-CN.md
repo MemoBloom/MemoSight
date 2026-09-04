@@ -97,6 +97,27 @@ Python 标准库和 Pydantic。
   `results/test_data_review_one_vs_two_stage/index.html`（`results/`
   目录已被 gitignore）。
 
+### 在 NVIDIA 上验证
+
+同一 90 帧配对对比也在 NVIDIA 部署上通过验证（vLLM 服务 Qwen3.6-27B，
+A100 80GB，通过 `chat_template_kwargs={"enable_thinking": False}` 按请求
+关闭思考模式）：
+
+| 路径 | 结果 |
+| --- | ---: |
+| 一段式 JSON | 平均 5.83s，90/90 ok |
+| 两段式 | 平均 3.65s（caption 1.53s + 字段 2.12s），90/90 ok |
+
+两段式拆分在 27B 规模上依然成立——**快 1.60x**，可靠性同样是零失败，
+且绝对延迟与 2B mlx 运行相当：关闭思考后，27B 模型的质量上限不再以
+速度为代价。请勿在开启思考模式下运行该部署：思考块会耗尽 `max_tokens`
+预算，结构化输出在解析前就被截断（一段式退化到 16–33s 且出现硬失败；
+两段式的字段抽取每次都失败）。可用 `chat_template_kwargs` 按请求关闭
+思考，无需重启服务器——见下文「思考模型」。
+
+原始数据：`scripts/run_test_data_compare_openai.py` 输出
+`results/test_data_compare_openai.json`（已被 gitignore）。
+
 ## 安装
 
 Homebrew（tap）：
@@ -228,6 +249,28 @@ pipeline = MemoSightPipeline(
 `$MEMOSIGHT_OPENAI_MODEL`；未配置模型名称时，会从 `/v1/models` 解析一次
 模型 id。需要 Bearer 认证时设置 `$MEMOSIGHT_OPENAI_API_KEY`（本地 vLLM
 服务器无需设置）。
+
+### 思考模型
+
+推理（「思考」）模型会在结构化输出之前生成 `<think>` 块，并把响应的
+`max_tokens` 预算耗在思考上——以本地 vLLM 部署的 Qwen3.6-27B 实测：
+一段式调用退化到 16–33s 且 JSON 被截断成硬失败；两段式的字段抽取每帧
+都失败，因为思考耗尽了全部 384 token 预算。用 `chat_template_kwargs`
+按请求关闭思考，无需重启服务器：
+
+```python
+pipeline = MemoSightPipeline(
+    backend=OpenAICompatBackend(
+        "http://localhost:8000/v1",
+        "Qwen/Qwen3.6-27B",
+        chat_template_kwargs={"enable_thinking": False},
+    )
+)
+```
+
+该字典会逐字透传进每次 `/v1/chat/completions` 请求（图像与文本后端均
+支持）。关闭思考后，该部署上的 90 帧基准零失败完成——见上文「在 NVIDIA
+上验证」。
 
 ## CLI 用法
 
