@@ -204,6 +204,43 @@ Backend connection is configured via environment variables:
 | `MEMOSIGHT_MLX_SERVER_URL` | `http://127.0.0.1:8080` | mlx_vlm.server base URL |
 | `MEMOSIGHT_MLX_MODEL_NAME` | *(empty)* | model id hint; empty = first model the server reports |
 | `MEMOSIGHT_MLX_TIMEOUT_S` | `60` | request timeout |
+| `MEMOSIGHT_OPENAI_BASE_URL` | `http://127.0.0.1:8000/v1` | OpenAI-compatible server base URL (`--backend openai`) |
+| `MEMOSIGHT_OPENAI_MODEL` | *（empty）* | model name; empty = first entry of `/v1/models` |
+| `MEMOSIGHT_OPENAI_API_KEY` | *（empty）* | optional Bearer token for OpenAI-compatible servers |
+
+### OpenAI-Compatible Servers (vLLM, SGLang, ...)
+
+`--backend openai` targets any server exposing an OpenAI-compatible
+`/v1/chat/completions` endpoint with vision content — for example
+[vLLM](https://github.com/vllm-project/vllm) or SGLang on NVIDIA GPUs. Local
+image files are sent as base64 data URIs; the same output contract, parsing,
+validation, and repair flow apply as with the mlx-vlm backend — only the
+transport changes.
+
+```bash
+# start the server (Linux / NVIDIA)
+vllm serve Qwen/Qwen2.5-VL-7B-Instruct --port 8000
+
+# CLI
+memosight analyze photo.jpg --backend openai \
+  --base-url http://localhost:8000/v1 \
+  --model Qwen/Qwen2.5-VL-7B-Instruct
+```
+
+```python
+from memosight import MemoSightPipeline, OpenAICompatBackend
+
+pipeline = MemoSightPipeline(
+    backend=OpenAICompatBackend(
+        "http://localhost:8000/v1", "Qwen/Qwen2.5-VL-7B-Instruct"
+    )
+)
+```
+
+`--base-url` / `--model` fall back to `$MEMOSIGHT_OPENAI_BASE_URL` and
+`$MEMOSIGHT_OPENAI_MODEL`; when no model name is configured, the model id is
+resolved once from `/v1/models`. Set `$MEMOSIGHT_OPENAI_API_KEY` for Bearer
+auth (not needed for a local vLLM server).
 
 ## CLI Usage
 
@@ -211,7 +248,8 @@ Backend connection is configured via environment variables:
 memosight --help
 memosight --version
 memosight analyze IMAGE [--language zh|en] [--profile NAME] [--schema FILE]
-                        [--backend mlx|mock] [--compact]
+                        [--backend mlx|mock|openai] [--base-url URL]
+                        [--model NAME] [--compact]
 memosight doctor
 memosight serve --model /path/to/model [--port 8080]
 memosight setup-mlx [--yes]
@@ -222,7 +260,9 @@ memosight prompt --schema FILE [--plan FILE] [--language zh|en]
 - `analyze` prints the `MemoSightResult` JSON to stdout and exits non-zero
   when the result status is not `ok`. `--schema` points to a custom output
   schema JSON file (implies the `custom` profile). `--backend mock` runs a
-  deterministic offline backend, useful for smoke tests.
+  deterministic offline backend, useful for smoke tests. `--backend openai`
+sends requests to any OpenAI-compatible server (vLLM, SGLang, ...) — see
+[OpenAI-Compatible Servers](#openai-compatible-servers-vllm-sglang-).
 - `doctor` checks the package imports, `MEMOSIGHT_MLX_SERVER_URL`, server
   reachability, `/health` and `/v1/models`, and the loaded model — each
   failing check prints concrete remediation advice.
@@ -466,6 +506,7 @@ memosight/
   schema.py       # Public request/result models (MemoSightRequest, MemoSightResult, ...)
   source.py       # Image source normalization (path / bytes / base64 -> ResolvedImageSource)
   backends.py     # Image/text backend protocols plus MLX and mock adapters
+  openai_backend.py # OpenAI-compatible adapters (vLLM, SGLang, ...)
   profiles.py     # Named schema profiles + custom output_schema validation
   prompts.py      # zh/en prompt assembly from profile/schema + prompt plan
   prompt_config.py    # Bundled prompt config loading + deep-merge overrides

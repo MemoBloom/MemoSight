@@ -192,6 +192,42 @@ MemoSight 与本地 [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) 服务器
 | `MEMOSIGHT_MLX_SERVER_URL` | `http://127.0.0.1:8080` | mlx_vlm.server 的基础 URL |
 | `MEMOSIGHT_MLX_MODEL_NAME` | *（空）* | 模型 id 提示；为空 = 使用服务器报告的第一个模型 |
 | `MEMOSIGHT_MLX_TIMEOUT_S` | `60` | 请求超时时间 |
+| `MEMOSIGHT_OPENAI_BASE_URL` | `http://127.0.0.1:8000/v1` | OpenAI 兼容服务器基础 URL（`--backend openai`） |
+| `MEMOSIGHT_OPENAI_MODEL` | *（空）* | 模型名称；为空 = 使用 `/v1/models` 的第一个条目 |
+| `MEMOSIGHT_OPENAI_API_KEY` | *（空）* | OpenAI 兼容服务器的可选 Bearer 令牌 |
+
+### OpenAI 兼容服务器（vLLM、SGLang 等）
+
+`--backend openai` 可对接任何提供 OpenAI 兼容 `/v1/chat/completions`
+接口且支持视觉内容的服务器，例如 NVIDIA GPU 上的
+[vLLM](https://github.com/vllm-project/vllm) 或 SGLang。本地图片文件会以
+base64 data URI 发送；输出契约、解析、校验和修复流程与 mlx-vlm 后端完全
+一致，仅传输层不同。
+
+```bash
+# 启动服务器（Linux / NVIDIA）
+vllm serve Qwen/Qwen2.5-VL-7B-Instruct --port 8000
+
+# CLI
+memosight analyze photo.jpg --backend openai \
+  --base-url http://localhost:8000/v1 \
+  --model Qwen/Qwen2.5-VL-7B-Instruct
+```
+
+```python
+from memosight import MemoSightPipeline, OpenAICompatBackend
+
+pipeline = MemoSightPipeline(
+    backend=OpenAICompatBackend(
+        "http://localhost:8000/v1", "Qwen/Qwen2.5-VL-7B-Instruct"
+    )
+)
+```
+
+`--base-url` / `--model` 缺省时回退到 `$MEMOSIGHT_OPENAI_BASE_URL` 和
+`$MEMOSIGHT_OPENAI_MODEL`；未配置模型名称时，会从 `/v1/models` 解析一次
+模型 id。需要 Bearer 认证时设置 `$MEMOSIGHT_OPENAI_API_KEY`（本地 vLLM
+服务器无需设置）。
 
 ## CLI 用法
 
@@ -199,7 +235,8 @@ MemoSight 与本地 [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) 服务器
 memosight --help
 memosight --version
 memosight analyze IMAGE [--language zh|en] [--profile NAME] [--schema FILE]
-                        [--backend mlx|mock] [--compact]
+                        [--backend mlx|mock|openai] [--base-url URL]
+                        [--model NAME] [--compact]
 memosight doctor
 memosight serve --model /path/to/model [--port 8080]
 memosight setup-mlx [--yes]
@@ -210,7 +247,8 @@ memosight prompt --schema FILE [--plan FILE] [--language zh|en]
 - `analyze` 将 `MemoSightResult` JSON 打印到 stdout，当结果状态不是
   `ok` 时以非零码退出。`--schema` 指向自定义输出 schema JSON 文件
   （隐含 `custom` profile）。`--backend mock` 运行确定性的离线后端，
-  适合做冒烟测试。
+  适合做冒烟测试。`--backend openai` 将请求发送到任意 OpenAI 兼容
+  服务器（vLLM、SGLang 等）——见 [OpenAI 兼容服务器](#openai-兼容服务器vllmsglang-等)。
 - `doctor` 检查包导入、`MEMOSIGHT_MLX_SERVER_URL`、服务器可达性、
   `/health` 和 `/v1/models`，以及已加载的模型——每个失败项都会打印
   具体的修复建议。
@@ -444,6 +482,7 @@ memosight/
   schema.py       # 公开的请求/结果模型（MemoSightRequest、MemoSightResult 等）
   source.py       # 图片源归一化（path / bytes / base64 -> ResolvedImageSource）
   backends.py     # 图片/文本后端协议，以及 MLX 和 mock 适配器
+  openai_backend.py # OpenAI 兼容适配器（vLLM、SGLang 等）
   profiles.py     # 命名 schema profile + 自定义 output_schema 校验
   prompts.py      # 由 profile/schema + prompt 方案组装中英文 prompt
   prompt_config.py    # 内置 prompt 配置加载 + 深度合并覆盖
