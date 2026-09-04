@@ -27,6 +27,10 @@ from .normalizer import (
     empty_caption_fields,
     normalize_caption_fields,
 )
+from .openai_backend import (
+    OpenAICompatBackend,
+    OpenAICompatTextBackend,
+)
 from .pipeline import MemoSightPipeline
 from .parser import (
     MemoSightParseIssue,
@@ -133,6 +137,8 @@ __all__ = [
     "MlXTextMemoSightBackend",
     "MockMemoSightBackend",
     "MockMemoSightTextBackend",
+    "OpenAICompatBackend",
+    "OpenAICompatTextBackend",
     "ResolvedImageSource",
     "TwoStageMemoSightPipeline",
     "TwoStageMemoSightResult",

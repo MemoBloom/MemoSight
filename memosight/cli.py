@@ -63,9 +63,14 @@ async def _run_analyze(args: argparse.Namespace) -> int:
             return 2
         profile = "custom"
 
-    backend = (
-        MockMemoSightBackend() if args.backend == "mock" else MlXVlmMemoSightBackend()
-    )
+    if args.backend == "mock":
+        backend = MockMemoSightBackend()
+    elif args.backend == "openai":
+        from .openai_backend import OpenAICompatBackend
+
+        backend = OpenAICompatBackend(args.base_url, args.model)
+    else:
+        backend = MlXVlmMemoSightBackend()
     pipeline = MemoSightPipeline(backend=backend)
     request = MemoSightRequest(
         image=MemoSightImageSource(kind="path", image_path=str(args.image)),
@@ -457,8 +462,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_analyze.add_argument(
         "--backend",
         default="mlx",
-        choices=["mlx", "mock"],
-        help="analysis backend; 'mock' is deterministic and offline (for tests)",
+        choices=["mlx", "mock", "openai"],
+        help="analysis backend; 'openai' targets any OpenAI-compatible server "
+        "(vLLM, SGLang, ...); 'mock' is deterministic and offline (for tests)",
+    )
+    p_analyze.add_argument(
+        "--base-url",
+        default=None,
+        metavar="URL",
+        help="OpenAI-compatible base URL for --backend openai "
+        "(default: $MEMOSIGHT_OPENAI_BASE_URL or http://127.0.0.1:8000/v1)",
+    )
+    p_analyze.add_argument(
+        "--model",
+        default=None,
+        metavar="NAME",
+        help="model name for --backend openai "
+        "(default: $MEMOSIGHT_OPENAI_MODEL or the first /v1/models entry)",
     )
     p_analyze.add_argument(
         "--compact", action="store_true", help="print single-line JSON"
