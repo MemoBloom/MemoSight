@@ -1,0 +1,51 @@
+{
+  "defaultProvider": "dashscope",
+  "defaultModel": "ZHIPU/GLM-5.3-Flash",
+  "defaultThinkingLevel": "off",
+  "enabledModels": [
+    "dashscope/qwen3-coder-480b-a35b-instruct",
+    "dashscope/ZHIPU/GLM-5.3-Flash",
+    "dashscope/qwen3.7-max-preview",
+    "dashscope/qwen3-next-80b-a3b-thinking",
+    "huggingface/openai/gpt-oss-120b"
+  ],
+  "defaultTools": [
+    "read",
+    "bash",
+    "edit",
+    "write",
+    "grep",
+    "find",
+    "ls"
+  ],
+  "packages": [
+    "../memosight-skill"
+  ],
+  "prompts": [
+    "prompts"
+  ],
+  "enableSkillCommands": true,
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 16384,
+    "keepRecentTokens": 24000
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000,
+    "provider": {
+      "maxRetries": 0,
+      "maxRetryDelayMs": 60000
+    }
+  },
+  "sessionDir": "sessions",
+  "terminal": {
+    "showImages": true,
+    "imageWidthCells": 80
+  },
+  "images": {
+    "autoResize": true,
+    "blockImages": false
+  }
+}

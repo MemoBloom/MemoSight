@@ -20,3 +20,9 @@ frames_sample_736x416/
 results/
 video/
 memosight-skill/*.tgz
+
+# pi project-local runtime state
+.pi/sessions/
+.pi/git/
+.pi/npm/
+sessions/
